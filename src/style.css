@@ -25,6 +25,12 @@ canvas#preview{
 }
 canvas#preview.hidden{display:none}
 
+.campick{position:fixed;right:14px;bottom:calc(129px + env(safe-area-inset-bottom,0px));z-index:6;
+  font:inherit;font-size:11px;color:var(--ink);background:var(--panel);
+  border:1px solid var(--edge);border-radius:6px;padding:4px 6px;max-width:190px;cursor:pointer}
+.campick.hidden{display:none}
+.campick option{background:#140f26;color:var(--ink)}
+
 .hud{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top,0px));z-index:5;
   font-size:13px;line-height:1.5;color:var(--dim);pointer-events:none}
 .hud b{color:var(--ink);font-weight:600}
@@ -115,4 +121,5 @@ canvas#preview.hidden{display:none}
   .keys{max-width:58vw;font-size:11px}
   .takes{max-width:92vw;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   canvas#preview{width:130px;height:73px}
+  .campick{bottom:calc(95px + env(safe-area-inset-bottom,0px));max-width:130px}
 }

@@ -1,6 +1,7 @@
 /* localStorage. Every read is defensive — private windows, cleared site data
  * and quota errors all have to leave the instrument playable. */
 
+const CAM_KEY   = 'handspace.camera.v1';
 const CAL_KEY   = 'handspace.calib.v1';
 const TAKES_KEY = 'handspace.takes.v1';
 const MAX_TAKES = 12;
@@ -25,6 +26,14 @@ export function loadCalibration(){
 }
 export function saveCalibration(c){ return write(CAL_KEY, { ...c, ts: Date.now() }); }
 export function clearCalibration(){ try { localStorage.removeItem(CAL_KEY); } catch (_){} }
+
+/* ───────── camera choice ───────── */
+
+export function loadCamera(){
+  const id = read(CAM_KEY, null);
+  return typeof id === 'string' && id ? id : null;
+}
+export function saveCamera(id){ return write(CAM_KEY, id); }
 
 /* ───────── takes ───────── */
 

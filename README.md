@@ -22,6 +22,14 @@ python -m http.server 8080     # python3 on macOS/Linux
 Camera access needs a secure context, so `file://` will not work. Chrome treats
 `localhost` as secure, so the camera prompt appears normally.
 
+### If the picture stays black
+
+`getUserMedia` takes whatever the system calls the default camera, and on a machine
+with OBS, a phone-as-webcam bridge or any other virtual camera installed, that default
+is often the virtual one — it opens without error and feeds nothing but black. The app
+detects this and moves to real hardware on its own. A picker appears above the preview
+in the bottom right whenever there is more than one camera; the choice is remembered.
+
 ## First run
 
 On first load you calibrate once: hold your palm out near the screen, then bring it

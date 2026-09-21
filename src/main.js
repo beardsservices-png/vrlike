@@ -26,7 +26,37 @@ const ui = new UI({
   onSaveTake:   () => saveTake(),
   onLoadTake:   id => loadTake(id),
   onDeleteTake: id => ui.renderTakes(store.deleteTake(id)),
+  onPickCamera: id => pickCamera(id),
 });
+
+async function pickCamera(id){
+  try {
+    await vision.useCamera(id);
+    store.saveCamera(id);
+    ui.toast(`Camera — ${vision.currentCamera()?.label || 'switched'}`);
+  } catch (_){
+    ui.toast('Could not open that camera');
+    ui.selectCamera(vision.currentCamera()?.id ?? '');
+  }
+}
+
+/* A virtual camera (OBS, a phone bridge) is often the system default and opens
+ * without error while feeding nothing but black. Move to real hardware unless
+ * the player has said otherwise. */
+async function chooseCamera(){
+  let cams = [];
+  try { cams = await vision.cameras(); } catch (_){ return; }
+  const current = vision.currentCamera()?.id ?? null;
+  const want = Vision.pick(cams, store.loadCamera(), current);
+  if (want && want !== current){
+    try { await vision.useCamera(want); } catch (_){}
+  }
+  ui.setCameras(cams, vision.currentCamera()?.id ?? want);
+  const active = vision.currentCamera();
+  if (active && cams.find(c => c.id === active.id)?.virtual && cams.some(c => !c.virtual)){
+    ui.toast('That is a virtual camera — pick your webcam bottom right', 4000);
+  }
+}
 
 /* per-hand state that has to survive between frames */
 const hand = [0, 1].map(() => ({
@@ -362,6 +392,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     loop = new Loop(engine, { bpm: K.BPM, bars: K.BARS, steps: K.STEPS });
 
     await vision.initCamera(setStatus);
+    await chooseCamera();
     await vision.initModels(setStatus);
 
     gate.classList.add('hidden');

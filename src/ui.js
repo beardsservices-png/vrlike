@@ -13,7 +13,7 @@ export class UI {
       mode: byId('mode'), kit: byId('kitname'), chips: byId('chips'),
       loop: byId('loopinfo'), fps: byId('fps'), toast: byId('toast'),
       takes: byId('takes'), strip: byId('takeStrip'), save: byId('saveTake'),
-      preview: byId('preview'), video: byId('cam'),
+      preview: byId('preview'), video: byId('cam'), campick: byId('campick'),
     };
     this.pctx = this.el.preview.getContext('2d');
     this._toastTimer = 0;
@@ -26,7 +26,23 @@ export class UI {
       this.chips.push(c);
     }
     this.el.save.addEventListener('click', () => this.h.onSaveTake?.());
+    this.el.campick.addEventListener('change', e => this.h.onPickCamera?.(e.target.value));
   }
+
+  /** Only shown when there is a real choice to make. */
+  setCameras(list, currentId){
+    this.el.campick.replaceChildren();
+    for (const c of list){
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = (c.virtual ? '⚠ ' : '') + c.label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+      o.selected = c.id === currentId;
+      this.el.campick.appendChild(o);
+    }
+    this.el.campick.classList.toggle('hidden', list.length < 2);
+  }
+
+  selectCamera(id){ this.el.campick.value = id; }
 
   show(){ this.el.takes.classList.remove('hidden'); this.el.preview.classList.remove('hidden'); }
 

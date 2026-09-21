@@ -14,6 +14,12 @@ export const remap = (v, a, b, c, d) => lerp(c, d, clamp((v - a) / (b - a), 0, 1
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/* Virtual cameras (OBS, Snap, phone-as-webcam bridges) enumerate exactly like real
+ * hardware and are often the system default, but nothing is feeding them unless
+ * their host app is running — you get a black frame and no error. Prefer real
+ * hardware, and let the player override. */
+const VIRTUAL = /virtual|obs\b|manycam|xsplit|snap camera|droidcam|epoccam|iriun|nvidia broadcast|streamlabs|vtube|reincubate|camo|splitcam|e2esoft|vcam/i;
+
 /** Apparent palm size — the depth proxy. Averaging five bones across the palm
  *  rather than one wrist-to-knuckle segment keeps it steady while the hand
  *  rotates, which is most of what a player does while drumming. */
@@ -75,12 +81,55 @@ export class Vision {
       throw new Error("This browser won't share a camera here. Serve the page over http://localhost or https.");
     }
     setStatus('Asking for the camera…');
+    // Opening the default device first is what unlocks device labels; without a
+    // granted stream, enumerateDevices() returns blank names we cannot judge.
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 540 } },
       audio: false,
     });
+    await this._attach(stream);
+  }
+
+  async _attach(stream){
+    const old = this.video.srcObject;
     this.video.srcObject = stream;
+    if (old && old !== stream) for (const t of old.getTracks()) t.stop();
+    this.lastVideoTime = -1;               // the new track restarts currentTime
+    for (const s of this.slots) s.filt.reset();
     await this.video.play();
+  }
+
+  /** Video inputs, flagged so a virtual camera is never chosen silently. */
+  async cameras(){
+    const all = await navigator.mediaDevices.enumerateDevices();
+    return all.filter(d => d.kind === 'videoinput').map(d => ({
+      id: d.deviceId,
+      label: d.label || 'Camera',
+      virtual: VIRTUAL.test(d.label || ''),
+    }));
+  }
+
+  currentCamera(){
+    const t = this.video.srcObject?.getVideoTracks?.()[0];
+    if (!t) return null;
+    return { id: t.getSettings?.().deviceId ?? null, label: t.label || '' };
+  }
+
+  /** Prefer a remembered choice, else the first camera that is real hardware. */
+  static pick(cams, saved, current){
+    if (saved && cams.some(c => c.id === saved)) return saved;
+    const real = cams.find(c => !c.virtual);
+    if (real && (!current || cams.find(c => c.id === current)?.virtual)) return real.id;
+    return current;
+  }
+
+  async useCamera(id){
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: id }, width: { ideal: 960 }, height: { ideal: 540 } },
+      audio: false,
+    });
+    await this._attach(stream);
+    return id;
   }
 
   async initModels(setStatus){
