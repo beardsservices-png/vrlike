@@ -1,0 +1,19 @@
+{
+  "id": "glass",
+  "name": "Glass",
+  "scale": [62, 64, 66, 69, 71, 74, 76, 78, 81, 83],
+  "lead": { "name": "Bell FM", "type": "fm", "ratio": 3, "index": 2.2, "indexEnd": 0.1,
+            "indexDecay": 0.30, "q": 4, "level": 0.26, "attack": 0.03, "release": 0.35 },
+  "pads": [
+    { "name": "thud",  "color": "#7ad0ff", "gm": 36, "voice": "body",
+      "from": 160, "to": 55, "drop": 0.10, "decay": 0.30, "gain": 0.90 },
+    { "name": "snap",  "color": "#a8e8ff", "gm": 39, "voice": "noise",
+      "filter": "bandpass", "freq": 2600, "q": 3, "decay": 0.12, "gain": 0.80 },
+    { "name": "shake", "color": "#d9ffff", "gm": 70, "voice": "noise",
+      "filter": "highpass", "freq": 9000, "decay": 0.045, "gain": 0.35 },
+    { "name": "bell",  "color": "#bda8ff", "gm": 81, "voice": "metal",
+      "base": 720, "ratios": [1, 1.73, 2.41, 3.17], "freq": 3000, "decay": 0.70, "gain": 0.40 },
+    { "name": "low",   "color": "#8f86c4", "gm": 41, "voice": "body",
+      "from": 190, "to": 70, "drop": 0.30, "decay": 0.55, "gain": 0.80 }
+  ]
+}

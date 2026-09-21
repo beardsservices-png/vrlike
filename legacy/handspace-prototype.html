@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Handspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#f2ecff;
+    --dim:#9a90b8;
+    --void:#0d0a18;
+    --panel:rgba(20,15,38,.78);
+    --edge:rgba(160,140,255,.22);
+    --hot:#ff7a4d;
+    --cool:#5ce1ff;
+    box-sizing:border-box;
+  }
+  *,*::before,*::after{box-sizing:inherit}
+  html,body{height:100%;margin:0;background:var(--void);color:var(--ink);
+    font-family:Archivo,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  video#cam{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0}
+
+  canvas#preview{
+    position:fixed;right:14px;bottom:14px;width:190px;height:107px;
+    border-radius:8px;border:1px solid var(--edge);background:#000;
+    opacity:.85;transition:opacity .2s;z-index:5;
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  canvas#preview.hidden{display:none}
+
+  .hud{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top,0px));z-index:5;
+    font-size:13px;line-height:1.5;color:var(--dim);pointer-events:none}
+  .hud b{color:var(--ink);font-weight:600}
+  .hud .row{display:flex;gap:10px;align-items:baseline}
+  .hud .val{font-variant-numeric:tabular-nums;color:var(--ink)}
+
+  .keys{position:fixed;left:16px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5;
+    font-size:12px;color:var(--dim);line-height:1.7;pointer-events:none}
+  .keys kbd{font:inherit;color:var(--ink);border:1px solid var(--edge);
+    border-radius:4px;padding:1px 5px;background:rgba(255,255,255,.04)}
+
+  #gate{position:fixed;inset:0;z-index:20;display:grid;place-items:center;
+    background:radial-gradient(120% 90% at 50% 40%,#1a1230 0%,#0d0a18 70%);
+    padding:24px}
+  #gate .card{max-width:32rem;text-align:left}
+  #gate h1{font-size:clamp(2.4rem,9vw,4rem);font-weight:600;letter-spacing:-.03em;
+    margin:0 0 .4em;line-height:.95}
+  #gate h1 em{font-style:normal;display:block;color:var(--dim);font-size:.32em;
+    letter-spacing:.02em;font-weight:400;margin-top:.9em}
+  #gate p{color:var(--dim);font-size:15px;line-height:1.6;margin:0 0 1.6em;max-width:34ch}
+  #gate button{font:inherit;font-weight:600;font-size:16px;color:#180f0a;
+    background:var(--hot);border:0;border-radius:999px;padding:14px 30px;cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
+    box-shadow:0 8px 30px rgba(255,122,77,.28)}
+  #gate button:hover{transform:translateY(-1px);box-shadow:0 12px 36px rgba(255,122,77,.38)}
+  #gate button:focus-visible{outline:2px solid var(--cool);outline-offset:3px}
+  #gate .status{margin-top:1.4em;font-size:13px;color:var(--dim);min-height:1.4em}
+  #gate .status.err{color:var(--hot)}
+  @media (prefers-reduced-motion:reduce){#gate button{transition:none}}
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<video id="cam" playsinline muted></video>
+<canvas id="preview" width="190" height="107" class="hidden"></canvas>
+
+<div class="hud">
+  <div class="row"><b id="mode">stopped</b></div>
+  <div class="row">loop <span class="val" id="loopinfo">0 events</span></div>
+  <div class="row">fps <span class="val" id="fps">–</span></div>
+</div>
+
+<div class="keys">
+  Punch toward the screen to hit a pad · pinch thumb to finger to sound a note<br>
+  <kbd>space</kbd> play/stop &nbsp; <kbd>r</kbd> record &nbsp; <kbd>x</kbd> clear &nbsp; <kbd>c</kbd> camera
+</div>
+
+<div id="gate">
+  <div class="card">
+    <h1>Handspace<em>An instrument you reach into. Webcam only — no headset.</em></h1>
+    <p>Your hands become mallets. Reach toward the screen to strike the pads,
+       pinch to hold a note, and lean side to side — the room moves with your head.</p>
+    <button id="startBtn">Turn on the camera</button>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+import { FilesetResolver, HandLandmarker, FaceDetector }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+/* ───────────────────────── constants ───────────────────────── */
+
+const WIN_W = 3.2, WIN_H = 1.8;          // the "window" plane at z = 0, in world units
+const NEAR = 0.1, FAR = 60;
+const PAD_Z = -0.95;                      // depth of the strike plane
+const BTN_Z = -0.95;
+const BPM = 96;
+const LOOP_LEN = (60 / BPM) * 8;          // two bars of 4/4
+const STEPS = 32;                         // 16th notes across the loop
+const SCALE = [57,60,62,64,67,69,72,74,76,79,81,84]; // A minor pentatonic, 2+ octaves
+
+const PADS = [
+  { name:'kick',  x:-1.30, color:0xff7a4d },
+  { name:'snare', x:-0.65, color:0xffc24d },
+  { name:'hat',   x: 0.00, color:0x9dff6b },
+  { name:'clap',  x: 0.65, color:0x5ce1ff },
+  { name:'tom',   x: 1.30, color:0xb98bff },
+];
+
+/* ───────────────────────── audio ───────────────────────── */
+
+class Engine {
+  constructor(){
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const c = this.ctx;
+
+    this.out = c.createDynamicsCompressor();
+    this.out.threshold.value = -14; this.out.ratio.value = 4;
+    this.out.connect(c.destination);
+
+    this.bus = c.createGain(); this.bus.gain.value = 0.9;
+    this.bus.connect(this.out);
+
+    this.verb = c.createConvolver(); this.verb.buffer = this._impulse(2.4, 2.6);
+    this.send = c.createGain(); this.send.gain.value = 0.26;
+    this.send.connect(this.verb); this.verb.connect(this.out);
+
+    this.noise = this._noise(2);
+  }
+  _noise(sec){
+    const b = this.ctx.createBuffer(1, this.ctx.sampleRate*sec, this.ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    return b;
+  }
+  _impulse(sec, decay){
+    const rate = this.ctx.sampleRate, len = rate*sec;
+    const b = this.ctx.createBuffer(2, len, rate);
+    for (let ch=0; ch<2; ch++){
+      const d = b.getChannelData(ch);
+      for (let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, decay);
+    }
+    return b;
+  }
+  _tap(node, gain){
+    node.connect(this.bus);
+    const s = this.ctx.createGain(); s.gain.value = gain;
+    node.connect(s); s.connect(this.send);
+  }
+  drum(kind, when, vel=1){
+    const c = this.ctx, t = when ?? c.currentTime, v = Math.max(.12, Math.min(1, vel));
+    const g = c.createGain(); this._tap(g, .35);
+
+    if (kind === 'kick'){
+      const o = c.createOscillator(); o.type='sine';
+      o.frequency.setValueAtTime(140, t);
+      o.frequency.exponentialRampToValueAtTime(44, t+0.14);
+      g.gain.setValueAtTime(v, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.45);
+      o.connect(g); o.start(t); o.stop(t+0.5);
+    }
+    else if (kind === 'snare' || kind === 'clap'){
+      const n = c.createBufferSource(); n.buffer = this.noise;
+      const f = c.createBiquadFilter(); f.type='bandpass';
+      f.frequency.value = kind==='snare' ? 1900 : 1150; f.Q.value = kind==='snare'?1.1:2.4;
+      const dur = kind==='snare' ? 0.20 : 0.26;
+      g.gain.setValueAtTime(v*0.85, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+      n.connect(f); f.connect(g); n.start(t); n.stop(t+dur+0.02);
+      if (kind === 'snare'){
+        const o = c.createOscillator(); o.type='triangle'; o.frequency.value=185;
+        const og = c.createGain(); og.gain.setValueAtTime(v*0.4,t);
+        og.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+        o.connect(og); og.connect(g); o.start(t); o.stop(t+0.14);
+      }
+    }
+    else if (kind === 'hat'){
+      const n = c.createBufferSource(); n.buffer = this.noise;
+      const f = c.createBiquadFilter(); f.type='highpass'; f.frequency.value=7200;
+      g.gain.setValueAtTime(v*0.4, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.06);
+      n.connect(f); f.connect(g); n.start(t); n.stop(t+0.08);
+    }
+    else { // tom
+      const o = c.createOscillator(); o.type='sine';
+      o.frequency.setValueAtTime(240, t);
+      o.frequency.exponentialRampToValueAtTime(110, t+0.24);
+      g.gain.setValueAtTime(v*0.9, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.35);
+      o.connect(g); o.start(t); o.stop(t+0.4);
+    }
+  }
+  /** Returns a handle so a live pinch can be released later. */
+  note(midi, when, cutoff=1600, vel=.7, dur=null){
+    const c = this.ctx, t = when ?? c.currentTime;
+    const hz = 440 * Math.pow(2, (midi-69)/12);
+    const g = c.createGain(); g.gain.value = 0;
+    const f = c.createBiquadFilter(); f.type='lowpass'; f.Q.value=7;
+    f.frequency.setValueAtTime(Math.max(300, cutoff), t);
+
+    const a = c.createOscillator(); a.type='sawtooth'; a.frequency.value = hz;
+    const b = c.createOscillator(); b.type='sawtooth';
+    b.frequency.value = hz; b.detune.value = 7;
+    const s = c.createOscillator(); s.type='sine'; s.frequency.value = hz/2;
+
+    a.connect(f); b.connect(f); s.connect(f); f.connect(g);
+    this._tap(g, .5);
+    g.gain.linearRampToValueAtTime(vel*0.30, t+0.02);
+    [a,b,s].forEach(o=>o.start(t));
+
+    const stop = (at)=>{
+      const e = at ?? c.currentTime;
+      g.gain.cancelScheduledValues(e);
+      g.gain.setValueAtTime(g.gain.value, e);
+      g.gain.exponentialRampToValueAtTime(0.0008, e+0.25);
+      [a,b,s].forEach(o=>o.stop(e+0.3));
+    };
+    if (dur != null) stop(t + dur);
+    return { stop, filter:f };
+  }
+}
+
+/* ───────────────────────── loop transport ───────────────────────── */
+
+class Loop {
+  constructor(engine){
+    this.e = engine;
+    this.events = [];
+    this.recording = false;
+    this.playing = false;
+    this.origin = 0;
+    this.cursor = 0;
+    this.step = -1;
+  }
+  start(){
+    this.origin = this.e.ctx.currentTime;
+    this.cursor = this.origin;
+    this.playing = true;
+  }
+  stop(){ this.playing = false; this.recording = false; }
+  clear(){ this.events.length = 0; this.step = -1; }
+  phase(){
+    if (!this.playing) return 0;
+    return ((this.e.ctx.currentTime - this.origin) % LOOP_LEN) / LOOP_LEN;
+  }
+  quantize(t){ const q = LOOP_LEN/STEPS; return (Math.round(t/q)*q) % LOOP_LEN; }
+  capture(ev){
+    if (!this.recording || !this.playing) return;
+    const raw = (this.e.ctx.currentTime - this.origin) % LOOP_LEN;
+    this.events.push({ ...ev, t: this.quantize(raw) });
+  }
+  fire(ev, when){
+    if (ev.kind === 'drum') this.e.drum(ev.name, when, ev.vel);
+    else this.e.note(ev.midi, when, ev.cutoff, ev.vel, ev.dur ?? 0.35);
+  }
+  tick(){
+    if (!this.playing) return;
+    const now = this.e.ctx.currentTime, ahead = now + 0.15;
+    if (this.cursor < now) this.cursor = now;
+    for (const ev of this.events){
+      const c0 = Math.ceil((this.cursor - this.origin - ev.t) / LOOP_LEN);
+      const when = this.origin + c0*LOOP_LEN + ev.t;
+      if (when >= this.cursor && when < ahead) this.fire(ev, when);
+    }
+    this.cursor = ahead;
+  }
+}
+
+/* ───────────────────────── scene ───────────────────────── */
+
+const canvas   = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0a18);
+scene.fog = new THREE.Fog(0x0d0a18, 3.2, 8.5);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, NEAR, FAR);
+camera.position.set(0, 0, 2.9);
+
+scene.add(new THREE.AmbientLight(0x6a5aa0, 0.55));
+const key = new THREE.PointLight(0xffa06a, 26, 14); key.position.set(-2.2, 1.6, 1.8);
+const rim = new THREE.PointLight(0x6ad8ff, 22, 14); rim.position.set( 2.4, -0.6, 1.2);
+scene.add(key, rim);
+
+// floor grid, pushed back so the room reads as deep
+const grid = new THREE.GridHelper(14, 28, 0x3c2f66, 0x241c40);
+grid.position.set(0, -1.25, -2.4);
+grid.material.transparent = true; grid.material.opacity = 0.5;
+scene.add(grid);
+
+const glowTex = (()=>{                      // soft additive blob for cursors and hits
+  const s = 128, cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const g = cv.getContext('2d').createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.35,'rgba(255,255,255,.45)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  const ctx2 = cv.getContext('2d'); ctx2.fillStyle = g; ctx2.fillRect(0,0,s,s);
+  return new THREE.CanvasTexture(cv);
+})();
+
+function glow(color, size){
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({
+    map:glowTex, color, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false }));
+  m.scale.setScalar(size); return m;
+}
+
+/* pads */
+const pads = PADS.map((p,i)=>{
+  const geo = new THREE.BoxGeometry(0.44, 0.44, 0.06);
+  const mat = new THREE.MeshStandardMaterial({
+    color:0x241c3f, emissive:new THREE.Color(p.color), emissiveIntensity:0.18,
+    roughness:0.35, metalness:0.25 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(p.x, -0.42, PAD_Z);
+  mesh.rotation.x = -0.28;
+  const halo = glow(p.color, 0.95); halo.position.copy(mesh.position);
+  halo.position.z += 0.05; halo.material.opacity = 0.18;
+  scene.add(mesh, halo);
+  return { ...p, mesh, halo, flash:0 };
+});
+
+/* transport buttons */
+function makeButton(label, x, color){
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.20, 0.05),
+    new THREE.MeshStandardMaterial({ color:0x1c1636, emissive:new THREE.Color(color),
+      emissiveIntensity:0.12, roughness:0.5 }));
+  mesh.position.set(x, 0.72, BTN_Z);
+  const halo = glow(color, 0.6); halo.position.copy(mesh.position); halo.position.z += 0.05;
+  halo.material.opacity = 0.14;
+  scene.add(mesh, halo);
+  return { label, mesh, halo, color, flash:0, w:0.46, h:0.20 };
+}
+const buttons = [
+  makeButton('rec',  -0.62, 0xff4d6d),
+  makeButton('play',  0.00, 0x9dff6b),
+  makeButton('clear', 0.62, 0x8f86c4),
+];
+
+/* step ring behind everything — shows the loop position and what's recorded */
+const ringGroup = new THREE.Group();
+ringGroup.position.set(0, 0.05, -2.15);
+scene.add(ringGroup);
+const stepCells = [];
+for (let i=0;i<STEPS;i++){
+  const a = (i/STEPS) * Math.PI*2 - Math.PI/2;
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(0.075, 0.075, 0.02),
+    new THREE.MeshBasicMaterial({ color:0x2e2552 }));
+  m.position.set(Math.cos(a)*1.22, Math.sin(a)*0.82, 0);
+  ringGroup.add(m); stepCells.push(m);
+}
+
+/* faint pitch guides across the open air */
+const guides = new THREE.Group(); scene.add(guides);
+for (let i=0;i<6;i++){
+  const y = -0.05 + i*0.21;
+  const g = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.9, 0.004),
+    new THREE.MeshBasicMaterial({ color:0x6a5aa0, transparent:true, opacity:0.16 }));
+  g.position.set(0, y, PAD_Z - 0.15);
+  guides.add(g);
+}
+
+/* hand cursors */
+const cursors = [0,1].map(()=>{
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.052, 20, 16),
+    new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffd9c2,
+      emissiveIntensity:1.1, roughness:0.2 }));
+  const halo = glow(0xffc9a8, 0.55);
+  core.visible = halo.visible = false;
+  scene.add(core, halo);
+  return { core, halo, prevZ:PAD_Z+1, cool:new Array(PADS.length).fill(0),
+           btnCool:new Array(buttons.length).fill(0), voice:null, midi:null };
+});
+
+/* ───────────────────────── head-coupled projection ───────────────────────── */
+
+const eye = { x:0, y:0, z:2.9 };
+const eyeTarget = { x:0, y:0, z:2.9 };
+
+function applyOffAxis(){
+  eye.x += (eyeTarget.x - eye.x) * 0.12;
+  eye.y += (eyeTarget.y - eye.y) * 0.12;
+  eye.z += (eyeTarget.z - eye.z) * 0.08;
+
+  const aspect = innerWidth/innerHeight;
+  const w = aspect >= WIN_W/WIN_H ? WIN_H*aspect : WIN_W;
+  const h = aspect >= WIN_W/WIN_H ? WIN_H : WIN_W/aspect;
+
+  const n = NEAR / eye.z;
+  camera.projectionMatrix.makePerspective(
+    (-w/2 - eye.x) * n, ( w/2 - eye.x) * n,
+    ( h/2 - eye.y) * n, (-h/2 - eye.y) * n,
+    NEAR, FAR);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  camera.position.set(eye.x, eye.y, eye.z);
+  camera.rotation.set(0,0,0);
+}
+
+/* ───────────────────────── vision ───────────────────────── */
+
+const video   = document.getElementById('cam');
+const preview = document.getElementById('preview');
+const pctx    = preview.getContext('2d');
+let hands = null, faces = null;
+let lastVideoTime = -1, handRes = null, faceRes = null, frame = 0;
+
+async function initVision(setStatus){
+  setStatus('Loading hand and face models…');
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+
+  hands = await HandLandmarker.createFromOptions(fileset, {
+    baseOptions:{ modelAssetPath:
+      "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate:"GPU" },
+    runningMode:"VIDEO", numHands:2,
+    minHandDetectionConfidence:.5, minTrackingConfidence:.5 });
+
+  try {
+    faces = await FaceDetector.createFromOptions(fileset, {
+      baseOptions:{ modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+        delegate:"GPU" },
+      runningMode:"VIDEO" });
+  } catch(e){ faces = null; }   // head tracking is a bonus, not a requirement
+}
+
+async function initCamera(setStatus){
+  if (!navigator.mediaDevices?.getUserMedia)
+    throw new Error("This browser won't share a camera here. Serve the page over http://localhost or https.");
+  setStatus('Asking for the camera…');
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:'user', width:{ideal:960}, height:{ideal:540} }, audio:false });
+  video.srcObject = stream;
+  await video.play();
+}
+
+/* ───────────────────────── hand → world ───────────────────────── */
+
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp  = (a,b,t)=>a+(b-a)*t;
+const remap = (v,a,b,c,d)=>lerp(c,d,clamp((v-a)/(b-a),0,1));
+
+function handToWorld(lm){
+  const tip = lm[8], thumb = lm[4], wrist = lm[0], mcp = lm[9];
+  const span = Math.hypot(wrist.x-mcp.x, wrist.y-mcp.y);      // bigger = hand nearer the lens
+  const sx = 1 - tip.x;                                        // mirror: move right, cursor right
+  const x = (sx - 0.5) * (WIN_W * 1.25);
+  const y = (0.5 - tip.y) * (WIN_H * 1.35);
+  const z = remap(span, 0.085, 0.24, 0.85, -1.75);             // reach forward = go deeper
+  const pinchDist = Math.hypot(tip.x-thumb.x, tip.y-thumb.y) / Math.max(span, 1e-4);
+  return { x, y, z, pinch: pinchDist < 0.55, pinchAmt: pinchDist };
+}
+
+const inRect = (px,py,cx,cy,w,h)=> Math.abs(px-cx) <= w/2 && Math.abs(py-cy) <= h/2;
+
+/* ───────────────────────── wiring ───────────────────────── */
+
+let engine = null, loop = null, running = false;
+const elMode = document.getElementById('mode');
+const elLoop = document.getElementById('loopinfo');
+const elFps  = document.getElementById('fps');
+
+function setMode(){
+  elMode.textContent = !loop.playing ? 'stopped' : (loop.recording ? 'recording' : 'playing');
+  elMode.style.color = loop.recording ? '#ff4d6d' : (loop.playing ? '#9dff6b' : '');
+  elLoop.textContent = `${loop.events.length} event${loop.events.length===1?'':'s'}`;
+}
+function toggleRec(){
+  if (!loop.playing) loop.start();
+  loop.recording = !loop.recording; setMode();
+}
+function togglePlay(){
+  loop.playing ? loop.stop() : loop.start(); setMode();
+}
+function clearLoop(){ loop.clear(); setMode(); }
+
+function hitPad(i, vel){
+  engine.drum(pads[i].name, undefined, vel);
+  loop.capture({ kind:'drum', name:pads[i].name, vel });
+  pads[i].flash = 1;
+  setMode();
+}
+function hitButton(i){
+  buttons[i].flash = 1;
+  ({ 0:toggleRec, 1:togglePlay, 2:clearLoop })[i]();
+}
+
+/* ───────────────────────── main loop ───────────────────────── */
+
+let fpsAcc = 0, fpsN = 0, fpsT = performance.now();
+
+function tick(){
+  requestAnimationFrame(tick);
+  if (!running) return;
+  frame++;
+
+  // vision
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime){
+    lastVideoTime = video.currentTime;
+    const ts = performance.now();
+    try { handRes = hands.detectForVideo(video, ts); } catch(e){}
+    if (faces && frame % 3 === 0){
+      try { faceRes = faces.detectForVideo(video, ts); } catch(e){}
+    }
+  }
+
+  // head → eye position
+  if (faceRes?.detections?.length){
+    const bb = faceRes.detections[0].boundingBox;
+    const vw = video.videoWidth || 960, vh = video.videoHeight || 540;
+    const cx = (bb.originX + bb.width/2) / vw;
+    const cy = (bb.originY + bb.height/2) / vh;
+    eyeTarget.x = ((1-cx) - 0.5) * 2.4;
+    eyeTarget.y = (0.42 - cy) * 1.5;
+    eyeTarget.z = remap(bb.width/vw, 0.42, 0.13, 1.9, 4.0);
+  }
+  applyOffAxis();
+
+  // hands
+  const lms = handRes?.landmarks ?? [];
+  for (let i=0;i<cursors.length;i++){
+    const c = cursors[i], lm = lms[i];
+    if (!lm){
+      c.core.visible = c.halo.visible = false;
+      if (c.voice){ c.voice.stop(); c.voice = null; c.midi = null; }
+      continue;
+    }
+    const h = handToWorld(lm);
+    c.core.visible = c.halo.visible = true;
+    c.core.position.set(h.x, h.y, h.z);
+    c.halo.position.copy(c.core.position);
+
+    // strike: cursor crosses the pad plane moving away from the viewer
+    const crossed = c.prevZ > PAD_Z && h.z <= PAD_Z;
+    if (crossed){
+      const vel = clamp((c.prevZ - h.z) * 3.2, 0.25, 1);
+      for (let p=0;p<pads.length;p++){
+        if (c.cool[p] > 0) continue;
+        const m = pads[p].mesh.position;
+        if (inRect(h.x, h.y, m.x, m.y, 0.5, 0.5)){ hitPad(p, vel); c.cool[p] = 8; break; }
+      }
+      for (let b=0;b<buttons.length;b++){
+        if (c.btnCool[b] > 0) continue;
+        const m = buttons[b].mesh.position;
+        if (inRect(h.x, h.y, m.x, m.y, buttons[b].w+0.08, buttons[b].h+0.12)){
+          hitButton(b); c.btnCool[b] = 26; break;
+        }
+      }
+    }
+    c.cool = c.cool.map(v=>Math.max(0,v-1));
+    c.btnCool = c.btnCool.map(v=>Math.max(0,v-1));
+    c.prevZ = h.z;
+
+    // pinch → sustained note, pitch from height, filter from side to side
+    const idx = Math.round(remap(h.y, -0.35, 1.05, 0, SCALE.length-1));
+    const midi = SCALE[clamp(idx, 0, SCALE.length-1)];
+    const cutoff = remap(h.x, -1.8, 1.8, 480, 4200);
+    if (h.pinch && h.y > -0.18){
+      if (!c.voice){
+        c.voice = engine.note(midi, undefined, cutoff, 0.8);
+        c.midi = midi;
+        loop.capture({ kind:'note', midi, cutoff, vel:0.7, dur:0.4 });
+        setMode();
+      } else if (midi !== c.midi){
+        c.voice.stop(); c.voice = engine.note(midi, undefined, cutoff, 0.8); c.midi = midi;
+      } else {
+        c.voice.filter.frequency.setTargetAtTime(cutoff, engine.ctx.currentTime, 0.05);
+      }
+      c.core.material.emissive.setHex(0x5ce1ff);
+      c.halo.material.color.setHex(0x5ce1ff);
+    } else if (c.voice){
+      c.voice.stop(); c.voice = null; c.midi = null;
+      c.core.material.emissive.setHex(0xffd9c2);
+      c.halo.material.color.setHex(0xffc9a8);
+    }
+    const near = remap(h.z, 0.85, -1.75, 0.45, 0.95);
+    c.halo.scale.setScalar(near);
+  }
+
+  // transport + step ring
+  loop.tick();
+  const ph = loop.phase(), cur = Math.floor(ph*STEPS);
+  const marked = new Set(loop.events.map(e=>Math.round(e.t/(LOOP_LEN/STEPS)) % STEPS));
+  for (let i=0;i<STEPS;i++){
+    const m = stepCells[i];
+    const on = loop.playing && i === cur;
+    m.material.color.setHex(on ? (loop.recording ? 0xff4d6d : 0x9dff6b)
+                               : marked.has(i) ? 0x6a5aa0 : 0x2e2552);
+    m.scale.setScalar(on ? 1.75 : 1);
+  }
+  ringGroup.rotation.z = Math.sin(performance.now()*0.00013)*0.04;
+
+  // decay flashes
+  for (const p of pads){
+    p.flash *= 0.86;
+    p.mesh.material.emissiveIntensity = 0.18 + p.flash*2.6;
+    p.halo.material.opacity = 0.18 + p.flash*0.75;
+    p.mesh.position.z = PAD_Z - p.flash*0.10;
+  }
+  for (const b of buttons){
+    b.flash *= 0.88;
+    const lit = (b.label==='rec' && loop.recording) || (b.label==='play' && loop.playing);
+    b.mesh.material.emissiveIntensity = (lit ? 0.75 : 0.12) + b.flash*2.2;
+    b.halo.material.opacity = (lit ? 0.3 : 0.14) + b.flash*0.6;
+  }
+
+  renderer.render(scene, camera);
+  drawPreview(lms);
+
+  fpsN++; const now = performance.now();
+  if (now - fpsT > 500){ elFps.textContent = Math.round(fpsN*1000/(now-fpsT)); fpsN=0; fpsT=now; }
+}
+
+function drawPreview(lms){
+  if (preview.classList.contains('hidden') || video.readyState < 2) return;
+  pctx.save();
+  pctx.translate(preview.width, 0); pctx.scale(-1, 1);
+  pctx.drawImage(video, 0, 0, preview.width, preview.height);
+  pctx.fillStyle = '#ff7a4d';
+  for (const lm of lms) for (const p of lm){
+    pctx.beginPath();
+    pctx.arc(p.x*preview.width, p.y*preview.height, 1.8, 0, Math.PI*2);
+    pctx.fill();
+  }
+  pctx.restore();
+}
+
+/* ───────────────────────── boot ───────────────────────── */
+
+addEventListener('resize', ()=>{
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth/innerHeight;
+});
+
+addEventListener('keydown', e=>{
+  if (!running) return;
+  const k = e.key.toLowerCase();
+  if (k === ' '){ e.preventDefault(); togglePlay(); }
+  if (k === 'r') toggleRec();
+  if (k === 'x') clearLoop();
+  if (k === 'c') preview.classList.toggle('hidden');
+});
+
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  const gate = document.getElementById('gate');
+  const st = document.getElementById('status');
+  const btn = document.getElementById('startBtn');
+  const setStatus = t => { st.classList.remove('err'); st.textContent = t; };
+  btn.disabled = true;
+  try{
+    engine = new Engine();
+    await engine.ctx.resume();
+    loop = new Loop(engine);
+    await initCamera(setStatus);
+    await initVision(setStatus);
+    running = true;
+    setMode();
+    preview.classList.remove('hidden');
+    gate.remove();
+  }catch(err){
+    btn.disabled = false;
+    st.classList.add('err');
+    st.textContent = err?.name === 'NotAllowedError'
+      ? 'Camera blocked. Allow it in the address bar, then try again.'
+      : (err?.message || String(err));
+  }
+});
+
+tick();
+</script>
+</body>
+</html>

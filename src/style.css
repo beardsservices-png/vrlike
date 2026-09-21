@@ -1,0 +1,118 @@
+:root{
+  --ink:#f2ecff;
+  --dim:#9a90b8;
+  --void:#0d0a18;
+  --panel:rgba(20,15,38,.86);
+  --edge:rgba(160,140,255,.22);
+  --hot:#ff7a4d;
+  --cool:#5ce1ff;
+  --rec:#ff4d6d;
+  --go:#9dff6b;
+  box-sizing:border-box;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;background:var(--void);color:var(--ink);
+  font-family:Archivo,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+video#cam{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0}
+
+canvas#preview{
+  position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  width:190px;height:107px;
+  border-radius:8px;border:1px solid var(--edge);background:#000;
+  opacity:.85;transition:opacity .2s;z-index:5;
+}
+canvas#preview.hidden{display:none}
+
+.hud{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top,0px));z-index:5;
+  font-size:13px;line-height:1.5;color:var(--dim);pointer-events:none}
+.hud b{color:var(--ink);font-weight:600}
+.hud .row{display:flex;gap:10px;align-items:baseline}
+.hud .val{font-variant-numeric:tabular-nums;color:var(--ink)}
+.hud .kit{color:var(--hot);font-size:12px;letter-spacing:.04em;text-transform:lowercase}
+
+.chips{display:flex;gap:4px}
+.chips i{font-style:normal;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;
+  border:1px solid var(--edge);color:var(--dim);background:rgba(255,255,255,.03);
+  font-variant-numeric:tabular-nums}
+.chips i.on{color:#180f0a;border-color:transparent;font-weight:600}
+.chips i.muted{opacity:.35;text-decoration:line-through}
+
+.keys{position:fixed;left:16px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5;
+  font-size:12px;color:var(--dim);line-height:1.7;pointer-events:none;max-width:46ch}
+.keys kbd{font:inherit;color:var(--ink);border:1px solid var(--edge);
+  border-radius:4px;padding:1px 5px;background:rgba(255,255,255,.04)}
+
+/* saved takes */
+.takes{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:6;
+  display:flex;gap:8px;align-items:center;max-width:min(62vw,720px)}
+.takes.hidden{display:none}
+.takes .savebtn{font:inherit;font-size:11px;color:var(--ink);background:rgba(255,255,255,.04);
+  border:1px solid var(--edge);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.takes .savebtn:hover{background:rgba(255,255,255,.09)}
+.takes .strip{display:flex;gap:6px;overflow-x:auto;padding:2px;scrollbar-width:thin}
+.takes .take{display:flex;align-items:center;gap:6px;flex:0 0 auto;
+  font-size:11px;color:var(--dim);background:var(--panel);border:1px solid var(--edge);
+  border-radius:8px;padding:5px 8px}
+.takes .take button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+.takes .take .name{color:var(--ink);max-width:16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.takes .take .name:hover{color:var(--cool)}
+.takes .take .kill{opacity:.5}
+.takes .take .kill:hover{opacity:1;color:var(--rec)}
+
+.toast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top,0px));
+  transform:translateX(-50%) translateY(-8px);z-index:12;
+  font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--edge);
+  border-radius:999px;padding:8px 16px;pointer-events:none;
+  opacity:0;transition:opacity .18s ease, transform .18s ease}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* overlays */
+#gate,#calib{position:fixed;inset:0;z-index:20;display:grid;place-items:center;
+  background:radial-gradient(120% 90% at 50% 40%,#1a1230 0%,#0d0a18 70%);padding:24px}
+#calib{background:radial-gradient(120% 90% at 50% 40%,rgba(26,18,48,.94) 0%,rgba(13,10,24,.97) 70%)}
+#gate.hidden,#calib.hidden{display:none}
+#gate .card,#calib .card{max-width:32rem;text-align:left}
+#gate h1{font-size:clamp(2.4rem,9vw,4rem);font-weight:600;letter-spacing:-.03em;
+  margin:0 0 .4em;line-height:.95}
+#gate h1 em{font-style:normal;display:block;color:var(--dim);font-size:.32em;
+  letter-spacing:.02em;font-weight:400;margin-top:.9em}
+#calib h2{font-size:clamp(1.6rem,5vw,2.3rem);font-weight:600;letter-spacing:-.02em;margin:0 0 .5em}
+#gate p,#calib p{color:var(--dim);font-size:15px;line-height:1.6;margin:0 0 1.6em;max-width:34ch}
+#gate button,#calib button{font:inherit;font-weight:600;font-size:16px;color:#180f0a;
+  background:var(--hot);border:0;border-radius:999px;padding:14px 30px;cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease;
+  box-shadow:0 8px 30px rgba(255,122,77,.28)}
+#gate button:hover,#calib button:hover{transform:translateY(-1px);box-shadow:0 12px 36px rgba(255,122,77,.38)}
+#gate button:focus-visible,#calib button:focus-visible{outline:2px solid var(--cool);outline-offset:3px}
+#gate button[disabled],#calib button[disabled]{opacity:.5;cursor:default;transform:none}
+#calib button.ghost{background:none;color:var(--dim);box-shadow:none;font-weight:400;
+  font-size:14px;padding:14px 8px}
+#calib button.ghost:hover{color:var(--ink);transform:none;box-shadow:none}
+#calib .actions{display:flex;gap:6px;align-items:center;margin-top:1.4em}
+#gate .status{margin-top:1.4em;font-size:13px;color:var(--dim);min-height:1.4em}
+#gate .status.err{color:var(--hot)}
+
+/* live span meter during calibration */
+#calib .meter{position:relative;height:10px;border-radius:999px;
+  background:rgba(255,255,255,.06);border:1px solid var(--edge);overflow:visible}
+#calib .meter .fill{height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--cool),var(--hot));transition:width .06s linear}
+#calib .meter .tick{position:absolute;top:-4px;width:2px;height:18px;border-radius:2px;
+  background:var(--go);opacity:0;transition:opacity .2s}
+#calib .meter .tick.set{opacity:.9}
+#calib .readout{display:flex;justify-content:space-between;gap:12px;
+  margin-top:.9em;font-size:13px;color:var(--dim);min-height:1.4em}
+#calib .readout .val{color:var(--ink);font-variant-numeric:tabular-nums}
+#calib .readout.err{color:var(--hot)}
+
+@media (prefers-reduced-motion:reduce){
+  #gate button,#calib button,.toast,#calib .meter .fill{transition:none}
+}
+@media (max-width:760px){
+  .keys{max-width:58vw;font-size:11px}
+  .takes{max-width:92vw;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  canvas#preview{width:130px;height:73px}
+}

@@ -1,0 +1,21 @@
+{
+  "id": "tape",
+  "name": "Tape",
+  "scale": [45, 48, 50, 52, 55, 57, 60, 62, 64, 67],
+  "lead": { "name": "Pluck", "type": "pluck", "detune": 9, "sweep": 3.4, "sweepTime": 0.08,
+            "q": 9, "level": 0.34, "attack": 0.005, "decay": 0.25, "sustain": 0.45, "release": 0.20 },
+  "pads": [
+    { "name": "808",   "color": "#ff5a3d", "gm": 36, "voice": "body",
+      "from": 110, "to": 32, "drop": 0.22, "decay": 1.10, "gain": 1.0, "click": 0.5 },
+    { "name": "rim",   "color": "#ffb03d", "gm": 37, "voice": "noise",
+      "filter": "bandpass", "freq": 2400, "q": 6, "decay": 0.05, "gain": 0.60,
+      "body": { "wave": "square", "freq": 330, "gain": 0.3, "decay": 0.04 } },
+    { "name": "hat",   "color": "#c8ff6b", "gm": 42, "voice": "metal",
+      "base": 380, "freq": 8200, "decay": 0.05, "gain": 0.50 },
+    { "name": "cow",   "color": "#5cffc8", "gm": 56, "voice": "metal",
+      "base": 540, "ratios": [1, 1.5], "filter": "bandpass", "freq": 2600, "q": 2,
+      "decay": 0.28, "gain": 0.50 },
+    { "name": "conga", "color": "#ff8bd0", "gm": 63, "voice": "body",
+      "from": 300, "to": 190, "drop": 0.10, "decay": 0.30, "gain": 0.85 }
+  ]
+}

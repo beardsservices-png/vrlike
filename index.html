@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Handspace</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%230d0a18"/><circle cx="16" cy="16" r="4.5" fill="%23ff7a4d"/><circle cx="16" cy="16" r="10" fill="none" stroke="%235ce1ff" stroke-width="2" opacity=".7"/></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/style.css">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<video id="cam" playsinline muted></video>
+<canvas id="preview" width="190" height="107" class="hidden"></canvas>
+
+<div class="hud">
+  <div class="row"><b id="mode">stopped</b><span class="kit" id="kitname">–</span></div>
+  <div class="row">layers <span class="chips" id="chips"></span></div>
+  <div class="row">loop <span class="val" id="loopinfo">0 events</span></div>
+  <div class="row">fps <span class="val" id="fps">–</span></div>
+</div>
+
+<div class="keys">
+  Punch toward the screen to hit a pad · pinch thumb to finger to sound a note · hold an open left palm to change kit<br>
+  <kbd>space</kbd> play/stop &nbsp; <kbd>r</kbd> rec &nbsp; <kbd>1</kbd>–<kbd>4</kbd> layer &nbsp; <kbd>m</kbd> mute &nbsp;
+  <kbd>x</kbd> clear &nbsp; <kbd>k</kbd> kit &nbsp; <kbd>s</kbd> save &nbsp; <kbd>e</kbd> midi &nbsp;
+  <kbd>c</kbd> camera &nbsp; <kbd>C</kbd> recalibrate
+</div>
+
+<div class="takes hidden" id="takes">
+  <button class="savebtn" id="saveTake" type="button">save take</button>
+  <div class="strip" id="takeStrip"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div id="gate">
+  <div class="card">
+    <h1>Handspace<em>An instrument you reach into. Webcam only — no headset.</em></h1>
+    <p>Your hands become mallets. Reach toward the screen to strike the pads,
+       pinch to hold a note, and lean side to side — the room moves with your head.</p>
+    <button id="startBtn" type="button">Turn on the camera</button>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<div id="calib" class="hidden">
+  <div class="card">
+    <h2 id="calibTitle">Two quick reaches</h2>
+    <p id="calibBody">This teaches Handspace how far your arms go, so the pads sit where
+       they feel like they should. Ten seconds, once.</p>
+
+    <div class="meter"><div class="fill" id="calibFill"></div>
+      <span class="tick near" id="tickNear"></span><span class="tick far" id="tickFar"></span></div>
+    <div class="readout"><span id="calibHint">Show one hand to the camera.</span>
+      <span class="val" id="calibCount"></span></div>
+
+    <div class="actions">
+      <button id="calibGo" type="button">Start</button>
+      <button id="calibSkip" class="ghost" type="button">Skip — use defaults</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
