@@ -31,6 +31,7 @@ export class UI {
 
   /** Only shown when there is a real choice to make. */
   setCameras(list, currentId){
+    if (document.body.classList.contains('nocam')) return;
     this.el.campick.replaceChildren();
     for (const c of list){
       const o = document.createElement('option');
@@ -44,7 +45,12 @@ export class UI {
 
   selectCamera(id){ this.el.campick.value = id; }
 
-  show(){ this.el.takes.classList.remove('hidden'); this.el.preview.classList.remove('hidden'); }
+  show({ camera = true } = {}){
+    this.el.takes.classList.remove('hidden');
+    this.el.preview.classList.toggle('hidden', !camera);
+    if (!camera) this.el.campick.classList.add('hidden');
+    document.body.classList.toggle('nocam', !camera);
+  }
 
   toast(msg, ms = 1800){
     this.el.toast.textContent = msg;

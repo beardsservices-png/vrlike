@@ -30,12 +30,21 @@ is often the virtual one — it opens without error and feeds nothing but black.
 detects this and moves to real hardware on its own. A picker appears above the preview
 in the bottom right whenever there is more than one camera; the choice is remembered.
 
+## The camera is optional
+
+The gate offers two ways in. **Turn on the camera** gives you hand tracking. **Play
+without a camera** skips getUserMedia and MediaPipe entirely — the instrument is fully
+playable with the mouse and keyboard, and it starts instantly and runs much faster.
+
+With the camera on, `h` toggles hand tracking off and back without reloading, for when
+you want to stop your hands triggering things mid-session.
+
 ## First run
 
-On first load you calibrate once: hold your palm out near the screen, then bring it
-back to your chest. That learns your reach and is stored in `localStorage`. Everything
-downstream — where the strike plane sits, how hard a punch reads — depends on it.
-`shift+C` runs it again; **skip** falls back to a generic range.
+With the camera on you calibrate once: hold your palm out near the screen, then bring
+it back to your chest. That learns your reach and is stored in `localStorage`.
+Everything downstream — where the strike plane sits, how hard a punch reads — depends
+on it. `shift+C` runs it again; **skip** falls back to a generic range.
 
 ## Playing
 
@@ -43,18 +52,29 @@ downstream — where the strike plane sits, how hard a punch reads — depends o
 |---|---|
 | Punch toward the screen over a pad | Hit, velocity from how fast you crossed the plane |
 | Pinch thumb to index | Sustained note — height picks the pitch, left/right opens the filter |
-| Punch **rec** / **play** / **clear** | Transport |
-| Punch **1**–**4** | Select that layer; punch the selected one again to mute it |
-| Hold an open palm on the left side | Cycles the kit |
+| Left-click a pad | Hit |
+| Right-click and drag | Sustained note that follows the pointer |
+| Punch or click **rec** / **play** / **clear** | Transport |
+| Punch or click **1**–**4** | Select that layer; hit the selected one again to mute it |
 
-A pinched hand cannot strike, and an open hand cannot sound a note — the two gestures
-never fight each other, so notes get the full height of the room for pitch.
+A pinched hand cannot strike, and an open hand cannot sound a note — the two never
+fight each other, so notes get the full height of the room for pitch.
+
+Pads do not need a direct hit. Any strike inside the pad band claims the nearest pad,
+so the outer ones are as easy to reach as the middle.
 
 ### Keys
 
-`space` play/stop · `r` record · `1`–`4` layer · `m` mute · `x` clear layer ·
-`shift+X` clear all · `k` kit (`shift+K` back) · `s` save take · `e` export MIDI ·
+`A` `S` `D` `F` `G` pads · `space` play/stop · `r` record · `1`–`4` layer · `m` mute ·
+`x` clear layer · `shift+X` clear all · `k` kit (`shift+K` back) · `t` save take ·
+`e` export MIDI · `h` hand tracking on/off · `p` open-palm kit change on/off ·
 `c` camera preview · `shift+C` recalibrate
+
+### Gestures that fire on their own
+
+Holding an open palm on the left cycles the kit, but it is **off by default** — an
+open hand resting in frame should not change your sound. Turn it on with `p`. The
+setting is remembered.
 
 ## Layout
 

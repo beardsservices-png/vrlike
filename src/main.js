@@ -1,4 +1,4 @@
-/* Handspace — wiring. Boot, the per-frame loop, and the gesture rules. */
+/* Handspace — wiring. Boot, the per-frame loop, and the input rules. */
 
 import * as K from './config.js';
 import { Engine } from './audio.js';
@@ -21,6 +21,12 @@ const calib  = new Calibration();
 let engine = null, loop = null;
 let kits = [], kitIndex = 0;
 let mode = 'boot';               // boot | calibrate | play
+let useCamera = false;           // whether hand tracking is even available
+
+/* Gestures that fire on their own are opt-in. An open left hand should not
+ * change the kit unless the player asked for that. */
+const settings = Object.assign({ palmGesture: false, hands: true }, store.loadSettings());
+const persist = () => store.saveSettings(settings);
 
 const ui = new UI({
   onSaveTake:   () => saveTake(),
@@ -28,6 +34,37 @@ const ui = new UI({
   onDeleteTake: id => ui.renderTakes(store.deleteTake(id)),
   onPickCamera: id => pickCamera(id),
 });
+
+const newCooldowns = () => ({
+  pad: new Array(5).fill(0),
+  btn: new Array(3).fill(0),
+  lay: new Array(4).fill(0),
+});
+const coolDecay = c => {
+  for (const key of ['pad', 'btn', 'lay']){
+    for (let i = 0; i < c[key].length; i++) c[key][i] = Math.max(0, c[key][i] - 1);
+  }
+};
+
+/* per-hand state that has to survive between frames */
+const hand = [0, 1].map(() => ({
+  prevZ: K.Z_FRONT,
+  cool: newCooldowns(),
+  voice: null, noteIdx: null,
+  pinchGuard: 0,
+  palmFired: false,
+  fresh: true,            // first frame after the hand appears — see updateHand
+  wasPinch: false,
+  anchor: null,
+}));
+
+/* mouse / trackpad, always available whether or not the camera is on */
+const mouse = { x: 0, y: 0, active: false, voice: null, noteIdx: null, cool: newCooldowns() };
+
+const kit = () => kits[kitIndex];
+const refresh = () => ui.setMode(loop, kit()?.name);
+
+/* ───────────────────────── camera ───────────────────────── */
 
 async function pickCamera(id){
   try {
@@ -58,21 +95,6 @@ async function chooseCamera(){
   }
 }
 
-/* per-hand state that has to survive between frames */
-const hand = [0, 1].map(() => ({
-  prevZ: K.Z_FRONT,
-  cool: new Array(5).fill(0),
-  btnCool: new Array(3).fill(0),
-  layCool: new Array(4).fill(0),
-  voice: null, noteIdx: null,
-  pinchGuard: 0,
-  palmFired: false,
-  fresh: true,          // first frame after the hand appears — see updateHand
-}));
-
-const kit = () => kits[kitIndex];
-const refresh = () => ui.setMode(loop, kit()?.name);
-
 /* ───────────────────────── transport ───────────────────────── */
 
 function togglePlay(){ loop.playing ? loop.stop() : loop.start(); refresh(); }
@@ -97,8 +119,28 @@ function cycleKit(delta = 1){
   view.applyKit(kit());
   // Voices in flight belong to the old kit's lead.
   for (const st of hand){ st.voice?.stop(); st.voice = null; st.noteIdx = null; }
+  mouse.voice?.stop(); mouse.voice = null; mouse.noteIdx = null;
   ui.toast(`Kit — ${kit().name}`);
   refresh();
+}
+
+function toggleHands(){
+  if (!useCamera) return ui.toast('Started without a camera — reload to use your hands');
+  settings.hands = !settings.hands;
+  persist();
+  if (!settings.hands){
+    for (let i = 0; i < hand.length; i++) updateHand(i, null);
+    view.restEye();
+  }
+  ui.toast(settings.hands ? 'Hand tracking on' : 'Hand tracking off — mouse and keys still play');
+}
+
+function togglePalmGesture(){
+  settings.palmGesture = !settings.palmGesture;
+  persist();
+  ui.toast(settings.palmGesture
+    ? 'Open-palm kit change on'
+    : 'Open-palm kit change off — use k, or the kit button');
 }
 
 function saveTake(){
@@ -131,6 +173,7 @@ function exportMidi(){
 }
 
 async function recalibrate(){
+  if (!useCamera) return ui.toast('Nothing to calibrate without a camera');
   mode = 'calibrate';
   const result = await calib.open({ redo: true });
   if (result){
@@ -160,6 +203,47 @@ function hitLayer(i){
   selectLayer(i);
 }
 
+/** Resolve a strike at a point in the room. Shared by hands and the mouse.
+ *  Pads claim the nearest slot inside their band rather than needing a direct
+ *  hit — reaching the outer pads should not be the hard part of playing. */
+function strikeAt(x, y, vel, cool){
+  for (let b = 0; b < view.buttons.length; b++){
+    if (cool.btn[b] > 0) continue;
+    const btn = view.buttons[b], m = btn.mesh.position;
+    if (inRect(x, y, m.x, m.y, btn.w + 0.08, btn.h + 0.12)){
+      hitButton(b); cool.btn[b] = K.BTN_LOCKOUT; return true;
+    }
+  }
+  for (let l = 0; l < view.layerButtons.length; l++){
+    if (cool.lay[l] > 0) continue;
+    const btn = view.layerButtons[l], m = btn.mesh.position;
+    if (inRect(x, y, m.x, m.y, btn.w + 0.06, btn.h + 0.10)){
+      hitLayer(l); cool.lay[l] = K.BTN_LOCKOUT; return true;
+    }
+  }
+  if (Math.abs(y - K.PAD_Y) > K.PAD_BAND) return false;
+  let best = -1, bd = Infinity;
+  for (let p = 0; p < view.pads.length; p++){
+    const d = Math.abs(x - view.pads[p].x);
+    if (d < bd){ bd = d; best = p; }
+  }
+  if (best < 0 || bd > K.PAD_REACH || cool.pad[best] > 0) return false;
+  hitPad(best, vel);
+  cool.pad[best] = K.STRIKE_LOCKOUT;
+  return true;
+}
+
+function noteAt(x, y){
+  const scale = engine.scale;
+  const fidx = remap(y, K.NOTE_Y_LO, K.NOTE_Y_HI, 0, scale.length - 1);
+  return {
+    fidx,
+    idx: clamp(Math.round(fidx), 0, scale.length - 1),
+    scale,
+    cutoff: remap(x, -1.8, 1.8, K.CUTOFF_RANGE[0], K.CUTOFF_RANGE[1]),
+  };
+}
+
 /* ───────────────────────── per-hand logic ───────────────────────── */
 
 function updateHand(i, h){
@@ -172,16 +256,28 @@ function updateHand(i, h){
     st.prevZ = K.Z_FRONT;
     st.palmFired = false;
     st.fresh = true;
+    st.wasPinch = false;
+    st.anchor = null;
     return;
   }
 
+  /* The cursor normally rides the index fingertip, which is what you point
+   * with. But closing a pinch physically moves that fingertip, which drags the
+   * note off its pitch at the exact moment you commit to it. So the instant a
+   * pinch engages, latch the position and steer it from the palm centre
+   * instead, which barely moves when the fingers do. */
+  if (h.pinch && !st.wasPinch) st.anchor = { x: h.x, y: h.y, px: h.px, py: h.py };
+  st.wasPinch = h.pinch;
+  const nx = (h.pinch && st.anchor) ? st.anchor.x + (h.px - st.anchor.px) : h.x;
+  const ny = (h.pinch && st.anchor) ? st.anchor.y + (h.py - st.anchor.py) : h.y;
+
   cur.core.visible = cur.halo.visible = true;
-  cur.core.position.set(h.x, h.y, h.z);
+  cur.core.position.set(nx, ny, h.z);
   cur.halo.position.copy(cur.core.position);
   cur.ring.position.copy(cur.core.position);
 
-  /* open palm on the left of the room, held, cycles the kit */
-  const gesturing = h.openHeld > 0 && h.x < 0;
+  /* open palm on the left of the room, held, cycles the kit — off by default */
+  const gesturing = settings.palmGesture && h.openHeld > 0 && nx < 0;
   if (gesturing){
     const p = Math.min(1, h.openHeld / K.PALM_HOLD_MS);
     cur.ring.material.opacity = 0.25 + p * 0.75;
@@ -193,61 +289,34 @@ function updateHand(i, h){
   }
 
   /* strike — the cursor crosses the pad plane moving away from the viewer.
-   * A pinched hand is playing notes, not drumming, so it cannot strike. */
-  // A hand that reappears already deep in the room has no travel behind it, so
-  // the first frame after a detection gap can never count as a strike.
+   * A pinched hand is playing notes, not drumming, so it cannot strike.
+   * A hand that reappears already deep has no travel behind it, so the first
+   * frame after a detection gap can never count as a strike either. */
   const crossed = !st.fresh && st.prevZ > K.PAD_Z && h.z <= K.PAD_Z;
   if (crossed && !h.pinch && st.pinchGuard <= 0 && !gesturing){
-    const vel = clamp((st.prevZ - h.z) * 3.2, 0.25, 1);
-    let done = false;
-    for (let p = 0; p < view.pads.length && !done; p++){
-      if (st.cool[p] > 0) continue;
-      const m = view.pads[p].mesh.position;
-      if (inRect(h.x, h.y, m.x, m.y, K.PAD_HIT.w, K.PAD_HIT.h)){
-        hitPad(p, vel); st.cool[p] = K.STRIKE_LOCKOUT; done = true;
-      }
-    }
-    for (let b = 0; b < view.buttons.length && !done; b++){
-      if (st.btnCool[b] > 0) continue;
-      const btn = view.buttons[b], m = btn.mesh.position;
-      if (inRect(h.x, h.y, m.x, m.y, btn.w + 0.08, btn.h + 0.12)){
-        hitButton(b); st.btnCool[b] = K.BTN_LOCKOUT; done = true;
-      }
-    }
-    for (let l = 0; l < view.layerButtons.length && !done; l++){
-      if (st.layCool[l] > 0) continue;
-      const btn = view.layerButtons[l], m = btn.mesh.position;
-      if (inRect(h.x, h.y, m.x, m.y, btn.w + 0.06, btn.h + 0.10)){
-        hitLayer(l); st.layCool[l] = K.BTN_LOCKOUT; done = true;
-      }
-    }
+    strikeAt(h.x, h.y, clamp((st.prevZ - h.z) * 3.2, 0.25, 1), st.cool);
   }
-  for (let n = 0; n < st.cool.length; n++)    st.cool[n]    = Math.max(0, st.cool[n] - 1);
-  for (let n = 0; n < st.btnCool.length; n++) st.btnCool[n] = Math.max(0, st.btnCool[n] - 1);
-  for (let n = 0; n < st.layCool.length; n++) st.layCool[n] = Math.max(0, st.layCool[n] - 1);
+  coolDecay(st.cool);
   st.pinchGuard = Math.max(0, st.pinchGuard - 1);
   st.prevZ = h.z;
   st.fresh = false;
 
   /* pinch → sustained note. Height picks the scale degree, x opens the filter. */
-  const scale = engine.scale;
-  const fidx  = remap(h.y, K.NOTE_Y_LO, K.NOTE_Y_HI, 0, scale.length - 1);
-  const cutoff = remap(h.x, -1.8, 1.8, K.CUTOFF_RANGE[0], K.CUTOFF_RANGE[1]);
-
+  const n = noteAt(nx, ny);
   if (h.pinch){
     // Switching only once the hand has clearly left the current degree keeps a
     // note sitting on a boundary from machine-gunning between two pitches.
-    const moved = st.noteIdx === null || Math.abs(fidx - st.noteIdx) > 0.6;
-    const idx = moved ? clamp(Math.round(fidx), 0, scale.length - 1) : st.noteIdx;
+    const moved = st.noteIdx === null || Math.abs(n.fidx - st.noteIdx) > 0.6;
+    const idx = moved ? n.idx : st.noteIdx;
 
     if (!st.voice || idx !== st.noteIdx){
       st.voice?.stop();
-      st.voice = engine.note(scale[idx], undefined, cutoff, 0.8);
+      st.voice = engine.note(n.scale[idx], undefined, n.cutoff, 0.8);
       st.noteIdx = idx;
-      loop.capture({ kind: 'note', midi: scale[idx], cutoff, vel: 0.7, dur: 0.4 });
+      loop.capture({ kind: 'note', midi: n.scale[idx], cutoff: n.cutoff, vel: 0.7, dur: 0.4 });
       refresh();
     } else {
-      st.voice.filter.frequency.setTargetAtTime(cutoff, engine.ctx.currentTime, 0.05);
+      st.voice.filter.frequency.setTargetAtTime(n.cutoff, engine.ctx.currentTime, 0.05);
     }
     cur.core.material.emissive.setHex(0x5ce1ff);
     cur.halo.material.color.setHex(0x5ce1ff);
@@ -256,12 +325,80 @@ function updateHand(i, h){
   } else if (st.voice){
     st.voice.stop(); st.voice = null; st.noteIdx = null;
     st.pinchGuard = 10;              // do not read the release as a punch
+    st.anchor = null;
     cur.core.material.emissive.setHex(0xffd9c2);
     cur.halo.material.color.setHex(0xffc9a8);
   }
 
   cur.halo.scale.setScalar(remap(h.z, K.Z_FRONT, K.Z_BACK, 0.45, 0.95));
 }
+
+/* ───────────────────────── mouse ───────────────────────── */
+
+function startMouseNote(){
+  const n = noteAt(mouse.x, mouse.y);
+  mouse.voice = engine.note(n.scale[n.idx], undefined, n.cutoff, 0.8);
+  mouse.noteIdx = n.idx;
+  loop.capture({ kind: 'note', midi: n.scale[n.idx], cutoff: n.cutoff, vel: 0.7, dur: 0.4 });
+  refresh();
+}
+function stopMouseNote(){
+  mouse.voice?.stop();
+  mouse.voice = null;
+  mouse.noteIdx = null;
+}
+
+function updatePointer(){
+  const p = view.pointer;
+  coolDecay(mouse.cool);
+  if (!mouse.active){
+    p.core.visible = p.halo.visible = false;
+    return;
+  }
+  p.core.visible = p.halo.visible = true;
+  p.core.position.set(mouse.x, mouse.y, K.PAD_Z + 0.07);
+  p.halo.position.copy(p.core.position);
+
+  if (!mouse.voice){
+    p.core.material.emissive.setHex(0xd9e4ff);
+    p.halo.material.color.setHex(0xbcd0ff);
+    return;
+  }
+  const n = noteAt(mouse.x, mouse.y);
+  if (n.idx !== mouse.noteIdx){
+    mouse.voice.stop();
+    mouse.voice = engine.note(n.scale[n.idx], undefined, n.cutoff, 0.8);
+    mouse.noteIdx = n.idx;
+    loop.capture({ kind: 'note', midi: n.scale[n.idx], cutoff: n.cutoff, vel: 0.7, dur: 0.4 });
+    refresh();
+  } else {
+    mouse.voice.filter.frequency.setTargetAtTime(n.cutoff, engine.ctx.currentTime, 0.05);
+  }
+  p.core.material.emissive.setHex(0x5ce1ff);
+  p.halo.material.color.setHex(0x5ce1ff);
+  const guide = view.guides.children[mouse.noteIdx];
+  if (guide) guide.material.opacity = 0.55;
+}
+
+const overChrome = e => !!(e.target?.closest?.('.takes, .campick, #gate, #calib'));
+
+addEventListener('mousemove', e => {
+  if (mode !== 'play' || overChrome(e)) return;
+  const p = view.screenToPad(e.clientX, e.clientY);
+  mouse.x = p.x; mouse.y = p.y; mouse.active = true;
+});
+
+addEventListener('mousedown', e => {
+  if (mode !== 'play' || overChrome(e)) return;
+  const p = view.screenToPad(e.clientX, e.clientY);
+  mouse.x = p.x; mouse.y = p.y; mouse.active = true;
+  if (e.button === 0){ e.preventDefault(); strikeAt(mouse.x, mouse.y, K.MOUSE_VEL, mouse.cool); }
+  else if (e.button === 2){ e.preventDefault(); startMouseNote(); }
+});
+
+addEventListener('mouseup', e => { if (e.button === 2) stopMouseNote(); });
+addEventListener('mouseleave', () => { mouse.active = false; stopMouseNote(); });
+addEventListener('contextmenu', e => { if (mode === 'play' && !overChrome(e)) e.preventDefault(); });
 
 /* ───────────────────────── frame ───────────────────────── */
 
@@ -271,14 +408,18 @@ function frame(now){
   requestAnimationFrame(frame);
   if (mode === 'boot') return;
 
-  const read = vision.read(now);
+  const tracking = useCamera && settings.hands;
+  const read = tracking ? vision.read(now) : null;
 
   if (mode === 'calibrate'){
-    calib.feed(read.hands, now);
+    calib.feed(read?.hands ?? [], now);
     view.restEye();
   } else {
-    view.setEyeTarget(read.head);
-    for (let i = 0; i < 2; i++) updateHand(i, read.hands[i]);
+    if (read){
+      view.setEyeTarget(read.head);
+      for (let i = 0; i < 2; i++) updateHand(i, read.hands[i]);
+    }
+    updatePointer();
     loop.tick();
   }
   view.applyOffAxis();
@@ -329,16 +470,15 @@ function frame(now){
   }
 
   view.render();
-  ui.drawPreview(read.landmarks);
+  if (read) ui.drawPreview(read.landmarks);
 
-  /* fps, and the performance ladder */
   fpsN++;
   if (now - fpsT > 500){
     const fps = Math.round(fpsN * 1000 / (now - fpsT));
     fpsAvg = fpsAvg * 0.6 + fps * 0.4;
     ui.setFps(fps);
     fpsN = 0; fpsT = now;
-    if (fpsAvg < 30 && now - lastDegrade > 4000){
+    if (tracking && fpsAvg < 30 && now - lastDegrade > 4000){
       const every = vision.degrade();
       if (every !== null){
         lastDegrade = now;
@@ -350,15 +490,19 @@ function frame(now){
   }
 }
 
-/* ───────────────────────── input ───────────────────────── */
+/* ───────────────────────── keys ───────────────────────── */
+
+const PAD_KEYS = { a: 0, s: 1, d: 2, f: 3, g: 4 };
 
 addEventListener('resize', () => view.resize());
 
 addEventListener('keydown', e => {
   if (mode !== 'play' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target instanceof HTMLSelectElement) return;
   const k = e.key;
   if (k === ' '){ e.preventDefault(); return togglePlay(); }
   if (k >= '1' && k <= '4') return selectLayer(+k - 1);
+  if (k in PAD_KEYS) return hitPad(PAD_KEYS[k], 0.9);
   switch (k){
     case 'r': case 'R': return toggleRec();
     case 'm': case 'M': loop.toggleMute(); return refresh();
@@ -366,8 +510,10 @@ addEventListener('keydown', e => {
     case 'X': return clearLayer(true);
     case 'k': return cycleKit(1);
     case 'K': return cycleKit(-1);
-    case 's': case 'S': return saveTake();
+    case 't': case 'T': return saveTake();
     case 'e': case 'E': return exportMidi();
+    case 'h': case 'H': return toggleHands();
+    case 'p': case 'P': return togglePalmGesture();
     case 'c': return ui.togglePreview();
     case 'C': return recalibrate();
   }
@@ -375,13 +521,14 @@ addEventListener('keydown', e => {
 
 /* ───────────────────────── boot ───────────────────────── */
 
-document.getElementById('startBtn').addEventListener('click', async () => {
-  const gate = document.getElementById('gate');
-  const st = document.getElementById('status');
-  const btn = document.getElementById('startBtn');
-  const setStatus = t => { st.classList.remove('err'); st.textContent = t; };
-  btn.disabled = true;
+const gate     = document.getElementById('gate');
+const statusEl = document.getElementById('status');
+const camBtn   = document.getElementById('startBtn');
+const noCamBtn = document.getElementById('noCamBtn');
+const setStatus = t => { statusEl.classList.remove('err'); statusEl.textContent = t; };
 
+async function boot(wantCamera){
+  camBtn.disabled = noCamBtn.disabled = true;
   try {
     engine = new Engine();
     await engine.ctx.resume();
@@ -391,14 +538,23 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     view.applyKit(kit());
     loop = new Loop(engine, { bpm: K.BPM, bars: K.BARS, steps: K.STEPS });
 
-    await vision.initCamera(setStatus);
-    await chooseCamera();
-    await vision.initModels(setStatus);
+    if (wantCamera){
+      await vision.initCamera(setStatus);
+      await chooseCamera();
+      await vision.initModels(setStatus);
+    }
+    useCamera = wantCamera;
 
     gate.classList.add('hidden');
-    ui.show();
+    ui.show({ camera: wantCamera });
     ui.renderTakes(store.listTakes());
     refresh();
+
+    if (!wantCamera){
+      mode = 'play';
+      view.restEye();
+      return ui.toast('Mouse mode — click a pad, right-click and drag for a note', 5000);
+    }
 
     const saved = store.loadCalibration();
     if (saved){
@@ -416,14 +572,17 @@ document.getElementById('startBtn').addEventListener('click', async () => {
       mode = 'play';
     }
   } catch (err){
-    btn.disabled = false;
+    camBtn.disabled = noCamBtn.disabled = false;
     gate.classList.remove('hidden');
     mode = 'boot';
-    st.classList.add('err');
-    st.textContent = err?.name === 'NotAllowedError'
-      ? 'Camera blocked. Allow it in the address bar, then try again.'
+    statusEl.classList.add('err');
+    statusEl.textContent = err?.name === 'NotAllowedError'
+      ? 'Camera blocked. Allow it in the address bar, or play without one.'
       : (err?.message || String(err));
   }
-});
+}
+
+camBtn.addEventListener('click', () => boot(true));
+noCamBtn.addEventListener('click', () => boot(false));
 
 requestAnimationFrame(frame);

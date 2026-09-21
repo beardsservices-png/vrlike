@@ -28,6 +28,15 @@ export function palmSpan(lm){
   return (dist(w, lm[5]) + dist(w, lm[9]) + dist(w, lm[13]) + dist(w, lm[17]) + dist(lm[5], lm[17])) / 5;
 }
 
+/** Centre of the palm: wrist plus the four knuckles. Unlike a fingertip this
+ *  barely moves when the fingers curl, so it is what a pinch should be steered
+ *  by — otherwise the act of pinching drags the cursor off the note. */
+export function palmCenter(lm){
+  let x = 0, y = 0;
+  for (const i of [0, 5, 9, 13, 17]){ x += lm[i].x; y += lm[i].y; }
+  return { x: x / 5, y: y / 5 };
+}
+
 /** Four fingers extended and the thumb away from the palm. */
 export function openPalm(lm){
   const w = lm[0];
@@ -63,6 +72,8 @@ export class Vision {
         y:    { minCutoff: 1.2, beta: 0.035 },
         span: { minCutoff: 1.0, beta: 0.090 },
         pinch:{ minCutoff: 2.5, beta: 0.010 },
+        px:   { minCutoff: 1.2, beta: 0.035 },
+        py:   { minCutoff: 1.2, beta: 0.035 },
       }),
       pinching: false,
       openSince: 0,
@@ -219,10 +230,13 @@ export class Vision {
       const lm = hit.lm;
       const tip = lm[8], thumb = lm[4];
       const rawSpan = palmSpan(lm);
+      const pc = palmCenter(lm);
       const sx = 1 - tip.x;                      // mirror, so moving right moves the cursor right
       const f = slot.filt.filter({
         x: (sx - 0.5) * (K.WIN_W * 1.25),
         y: (0.5 - tip.y) * (K.WIN_H * 1.5),
+        px: ((1 - pc.x) - 0.5) * (K.WIN_W * 1.25),
+        py: (0.5 - pc.y) * (K.WIN_H * 1.5),
         span: rawSpan,
         pinch: dist(tip, thumb) / Math.max(rawSpan, 1e-4),
       }, t);
@@ -240,6 +254,8 @@ export class Vision {
         label: hit.label,
         x: f.x,
         y: f.y,
+        px: f.px,
+        py: f.py,
         z: remap(f.span, this.calib.far, this.calib.near, K.Z_FRONT, K.Z_BACK),
         span: rawSpan,
         pinch: slot.pinching,

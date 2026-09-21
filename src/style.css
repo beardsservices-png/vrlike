@@ -98,6 +98,12 @@ canvas#preview.hidden{display:none}
   font-size:14px;padding:14px 8px}
 #calib button.ghost:hover{color:var(--ink);transform:none;box-shadow:none}
 #calib .actions{display:flex;gap:6px;align-items:center;margin-top:1.4em}
+#gate .choices{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#gate button.ghost{background:none;color:var(--dim);box-shadow:none;font-weight:400;
+  font-size:14px;padding:14px 12px;border:1px solid var(--edge);border-radius:999px}
+#gate button.ghost:hover{color:var(--ink);transform:none;box-shadow:none;
+  background:rgba(255,255,255,.04)}
+body.nocam .campick{display:none}
 #gate .status{margin-top:1.4em;font-size:13px;color:var(--dim);min-height:1.4em}
 #gate .status.err{color:var(--hot)}
 

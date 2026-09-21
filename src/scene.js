@@ -97,7 +97,7 @@ export function createScene(canvas){
   /* ── pads ── */
   const pads = [];
   for (let i = 0; i < 5; i++){
-    const x = -1.30 + i * 0.65;
+    const x = (i - 2) * K.PAD_GAP;
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(0.44, 0.44, 0.06),
       new THREE.MeshStandardMaterial({
@@ -190,6 +190,20 @@ export function createScene(canvas){
     return { core, halo, ring };
   });
 
+  /* ── mouse pointer, for playing without a camera ── */
+  const pointer = (() => {
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.044, 20, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: new THREE.Color(0xd9e4ff),
+        emissiveIntensity: 1.1, roughness: 0.2,
+      }));
+    const halo = glow(0xbcd0ff, 0.48);
+    core.visible = halo.visible = false;
+    scene.add(core, halo);
+    return { core, halo };
+  })();
+
   /* ── head-coupled off-axis projection ──
    * A normal centred perspective camera reads as a video game. Rebuilding an
    * asymmetric frustum from the tracked eye each frame is what makes the screen
@@ -236,6 +250,20 @@ export function createScene(canvas){
     buildGuides((kit.scale ?? []).length || 10);
   }
 
+  /* Screen point to a world point on the pad plane, so a mouse cursor sits
+   * exactly under the pointer instead of drifting with the off-axis frustum. */
+  const _v = new THREE.Vector3();
+  function screenToPad(clientX, clientY){
+    _v.set((clientX / innerWidth) * 2 - 1, -((clientY / innerHeight) * 2 - 1), 0.5);
+    _v.unproject(camera);
+    _v.sub(camera.position);
+    const t = (K.PAD_Z - camera.position.z) / (_v.z || -1e-6);
+    return {
+      x: camera.position.x + _v.x * t,
+      y: camera.position.y + _v.y * t,
+    };
+  }
+
   function resize(){
     renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight;
@@ -243,8 +271,8 @@ export function createScene(canvas){
 
   return {
     renderer, scene, camera,
-    pads, buttons, layerButtons, stepCells, cursors, guides, ringGroup,
-    applyKit, applyOffAxis, setEyeTarget, restEye, resize,
+    pads, buttons, layerButtons, stepCells, cursors, pointer, guides, ringGroup,
+    applyKit, applyOffAxis, setEyeTarget, restEye, resize, screenToPad,
     render: () => renderer.render(scene, camera),
   };
 }

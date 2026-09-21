@@ -16,7 +16,12 @@ export const BTN_Y   =  0.78;
 export const LAYER_Y =  1.04;
 export const NOTE_Y_LO = -0.70, NOTE_Y_HI = 1.05;
 
-export const PAD_HIT = { w: 0.50, h: 0.50 };   // strike target, larger than the pad art
+export const PAD_GAP = 0.58;                   // spacing between pad centres
+/* Targeting is forgiving on purpose: any punch inside the pad band claims the
+ * nearest pad rather than needing to land inside its outline. Reaching the
+ * outer pads should not be the hard part of playing. */
+export const PAD_BAND  = 0.62;                // vertical half-height of the pad row
+export const PAD_REACH = 0.90;                // how far sideways a punch may claim a pad
 
 /* Transport */
 export const BPM = 96, BARS = 2, STEPS = 32;
@@ -24,7 +29,8 @@ export const BPM = 96, BARS = 2, STEPS = 32;
 /* Hand mapping */
 export const SPAN_DEFAULT = { far: 0.070, near: 0.200 };  // replaced by calibration
 export const PINCH_ON = 0.60, PINCH_OFF = 0.80;           // hysteresis, ratio of palm span
-export const PALM_HOLD_MS = 600;                          // open palm to change kit
+export const PALM_HOLD_MS = 900;                          // open palm to change kit
+export const MOUSE_VEL = 0.85;                            // strike velocity for a click
 export const STRIKE_LOCKOUT = 8;                          // frames, per pad
 export const BTN_LOCKOUT = 26;
 
