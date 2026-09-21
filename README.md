@@ -9,14 +9,18 @@ code. Deploys as static files.
 
 ## Run it
 
-Camera access needs a secure context, so `file://` will not work.
+On Windows, double-click **`start.bat`** — it serves the folder and opens the page in
+Chrome. Leave the window open while you play; closing it stops the server.
+
+Otherwise, by hand:
 
 ```bash
 python -m http.server 8080     # python3 on macOS/Linux
 # open http://localhost:8080/ in Chrome
 ```
 
-Chrome treats `localhost` as secure, so the camera prompt appears normally.
+Camera access needs a secure context, so `file://` will not work. Chrome treats
+`localhost` as secure, so the camera prompt appears normally.
 
 ## First run
 
