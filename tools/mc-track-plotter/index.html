@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC Track Plotter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+[hidden]{display:none!important;}
+
+/* Layout: three-pane workbench (inputs | 3D view | block plans); stacks to one column on phones.
+   Single deliberate look: dark redstone-terminal, so no light palette. */
+:root{
+  color-scheme:dark;
+  --bg:#070b07;--panel:#0f150f;--panel2:#0c120c;--well:#060d06;--border:#1e3a1e;--rule:#0d1a0d;
+  --green:#3ddc84;--gdim:#1a5c3a;--gglow:rgba(61,220,132,.12);
+  --amber:#f0a500;--adim:#7a5200;--gold:#ffd166;
+  --cyan:#4dd9ff;--cdim:rgba(77,217,255,.3);
+  --red:#ff5a5a;--text:#c8e6c8;--tdim:#6b8c6b;
+  --ax-x:#ff6b6b;--ax-y:#6bff6b;--ax-z:#6bb5ff;
+  --mono:'Share Tech Mono',ui-monospace,Menlo,Consolas,monospace;
+  --ui:'Rajdhani','Segoe UI',system-ui,sans-serif;
+}
+html{height:100%;box-sizing:border-box;}
+*,*::before,*::after{box-sizing:inherit;margin:0;padding:0;}
+body{height:100%;background:var(--bg);color:var(--text);font-family:var(--ui);display:flex;overflow:hidden;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+button,input,select,textarea{font:inherit;color:inherit;}
+:focus-visible{outline:1px solid var(--cyan);outline-offset:1px;}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+
+/* ── panels ── */
+#sb,#rp{background:var(--panel);border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+#sb{width:280px;min-width:280px;}
+#rp{width:300px;min-width:300px;}
+.ph{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel2);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.ph h1,.ph h2{font-family:var(--mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;font-weight:400;}
+.ph h1{color:var(--green);} .ph h2{color:var(--amber);letter-spacing:2px;}
+.ph p{font-family:var(--mono);font-size:9px;color:var(--tdim);margin-top:2px;}
+.scroll{flex:1;overflow-y:auto;min-height:0;}
+.scroll::-webkit-scrollbar{width:4px;} .scroll::-webkit-scrollbar-thumb{background:var(--border);}
+.sec{padding:10px 12px;border-bottom:1px solid var(--border);}
+.lbl{font-family:var(--mono);font-size:9px;color:var(--gdim);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.lbl b{color:var(--green);font-weight:400;}
+.note{font-family:var(--mono);font-size:9px;color:var(--tdim);line-height:1.6;}
+.err{font-family:var(--mono);font-size:9px;color:var(--red);line-height:1.5;margin-top:5px;}
+
+/* inputs */
+.crow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:5px;}
+.cg{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.cg label{font-family:var(--mono);font-size:9px;}
+.cg label.x{color:var(--ax-x);} .cg label.y{color:var(--ax-y);} .cg label.z{color:var(--ax-z);}
+input[type=number],input[type=text],select,textarea{background:var(--well);border:1px solid var(--border);color:var(--green);font-family:var(--mono);font-size:11px;padding:4px 6px;width:100%;outline:none;border-radius:0;}
+input:focus,select:focus,textarea:focus{border-color:var(--gdim);}
+textarea{resize:vertical;line-height:1.5;color:var(--text);}
+.nrow{margin-bottom:5px;}
+.btnrow{display:flex;gap:4px;flex-wrap:wrap;}
+.btn{flex:1;padding:6px 8px;background:var(--gdim);border:1px solid var(--green);color:var(--green);font-family:var(--mono);font-size:9px;letter-spacing:1px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:background .15s,color .15s;}
+.btn:hover{background:var(--green);color:#000;}
+.btn.alt{background:var(--well);border-color:var(--border);color:var(--tdim);}
+.btn.alt:hover{border-color:var(--amber);color:var(--amber);background:var(--well);}
+.btn.warn{background:var(--well);border-color:var(--border);color:var(--tdim);}
+.btn.warn:hover,.btn.warn.armed{border-color:var(--red);color:var(--red);background:var(--well);}
+.btn.edit{background:rgba(77,217,255,.12);border-color:var(--cyan);color:var(--cyan);}
+.btn.edit:hover{background:var(--cyan);color:#000;}
+
+/* layers */
+.lgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.ltog{display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--well);border:1px solid var(--border);cursor:pointer;user-select:none;}
+.ltog.on{border-color:var(--gdim);background:var(--gglow);}
+.ltog input{position:absolute;opacity:0;pointer-events:none;}
+.ldot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.lname{font-family:var(--mono);font-size:9px;color:var(--tdim);}
+.ltog.on .lname{color:var(--text);}
+.trow{display:flex;align-items:center;gap:7px;margin-top:8px;}
+.trow label{font-family:var(--mono);font-size:9px;color:var(--tdim);flex-shrink:0;}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:2px;background:var(--border);outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;background:var(--green);border-radius:50%;}
+input[type=range]::-moz-range-thumb{width:10px;height:10px;background:var(--green);border-radius:50%;border:0;}
+#tval{font-family:var(--mono);font-size:9px;color:var(--green);width:28px;text-align:right;font-variant-numeric:tabular-nums;}
+
+/* tabs */
+#tabbar{display:flex;align-items:flex-end;gap:3px;padding:7px 10px 0;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel2);}
+#tabbar::-webkit-scrollbar{height:3px;} #tabbar::-webkit-scrollbar-thumb{background:var(--border);}
+.tab{font-family:var(--mono);font-size:9px;padding:4px 8px;background:var(--well);border:1px solid var(--border);border-bottom:none;color:var(--tdim);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;display:flex;align-items:center;gap:5px;}
+.tab:hover{color:var(--text);}
+.tab.active{border-color:var(--green);color:var(--green);background:var(--panel);}
+.tab input{width:110px;padding:1px 3px;font-size:9px;}
+.tx{background:none;border:none;color:var(--tdim);font-size:9px;cursor:pointer;padding:0 1px;}
+.tx:hover,.tx.armed{color:var(--red);}
+.tab-new{font-family:var(--mono);font-size:11px;padding:2px 8px;margin-bottom:3px;background:none;border:1px dashed var(--border);color:var(--tdim);cursor:pointer;flex-shrink:0;}
+.tab-new:hover{border-color:var(--green);color:var(--green);}
+#savebadge{font-family:var(--mono);font-size:8px;color:var(--gdim);transition:color .3s;}
+#savebadge.show{color:var(--green);}
+
+/* waypoint list */
+#wplist{display:flex;flex-direction:column;gap:3px;}
+.wpitem{display:flex;align-items:center;gap:5px;padding:5px 7px;background:var(--well);border:1px solid var(--border);cursor:pointer;user-select:none;}
+.wpitem:hover{border-color:var(--gdim);}
+.wpitem.dragging{opacity:.3;} .wpitem.over{border-color:var(--cyan);}
+.wpitem.sel{border-color:var(--cyan);background:rgba(77,217,255,.07);}
+.wpitem.sel .wpname{color:var(--cyan);}
+.wpitem.hid{opacity:.4;} .wpitem.hid .wpname{text-decoration:line-through;}
+.drag{font-size:10px;color:var(--tdim);cursor:grab;}
+.wpdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.wpinfo{flex:1;min-width:0;}
+.wpname{font-family:var(--mono);font-size:10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wpcoords{font-family:var(--mono);font-size:8px;color:var(--tdim);font-variant-numeric:tabular-nums;}
+.ib{background:none;border:none;color:var(--tdim);cursor:pointer;font-family:var(--mono);font-size:9px;padding:0 3px;flex-shrink:0;}
+.ib:hover{color:var(--text);} .ib.del:hover{color:var(--red);}
+.empty{font-family:var(--mono);font-size:9px;color:var(--tdim);line-height:1.7;}
+
+/* center */
+#cv{flex:1;position:relative;min-width:0;border-block:1px solid var(--border);background:var(--bg);}
+#cv canvas{display:block;width:100%;height:100%;touch-action:none;}
+.hint{position:absolute;font-family:var(--mono);font-size:9px;color:var(--tdim);pointer-events:none;line-height:1.8;}
+#rh{bottom:10px;right:12px;text-align:right;} #al{bottom:10px;left:12px;}
+.ax-x{color:var(--ax-x);} .ax-y{color:var(--ax-y);} .ax-z{color:var(--ax-z);}
+#rv{position:absolute;top:10px;right:12px;background:var(--panel);border:1px solid var(--border);color:var(--tdim);font-family:var(--mono);font-size:9px;padding:4px 8px;cursor:pointer;}
+#rv:hover{border-color:var(--gdim);color:var(--green);}
+#trackstat{position:absolute;top:10px;left:12px;font-family:var(--mono);font-size:9px;color:var(--tdim);line-height:1.7;pointer-events:none;}
+#trackstat b{color:var(--green);font-weight:400;} #trackstat .w{color:var(--red);}
+
+/* analysis */
+.seg-tabs{display:flex;gap:2px;margin-bottom:6px;flex-wrap:wrap;max-height:84px;overflow-y:auto;}
+.stab{font-family:var(--mono);font-size:8px;padding:2px 6px;background:var(--well);border:1px solid var(--border);cursor:pointer;color:var(--tdim);}
+.stab.active{border-color:var(--amber);color:var(--amber);}
+.stab.steep{border-style:dashed;}
+.rrow{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule);font-family:var(--mono);}
+.rlbl{color:var(--tdim);font-size:9px;}
+.rval{color:var(--green);font-size:10px;font-variant-numeric:tabular-nums;text-align:right;}
+.rval.am{color:var(--amber);} .rval.cy{color:var(--cyan);} .rval.bad{color:var(--red);}
+.pbadge{display:inline-block;padding:2px 6px;font-family:var(--mono);font-size:9px;letter-spacing:1px;margin:5px 0 2px;}
+.p-h{background:rgba(61,220,132,.1);color:var(--green);border:1px solid var(--gdim);}
+.p-v{background:rgba(240,165,0,.1);color:var(--amber);border:1px solid var(--adim);}
+.p-d{background:rgba(77,217,255,.1);color:var(--cyan);border:1px solid var(--cdim);}
+.warnbox{margin-top:6px;padding:5px 7px;border:1px solid rgba(255,90,90,.4);background:rgba(255,90,90,.06);font-family:var(--mono);font-size:9px;color:var(--red);line-height:1.5;}
+
+/* block grid */
+.zoom-btns{display:flex;gap:3px;}
+.zbtn{background:var(--well);border:1px solid var(--border);color:var(--tdim);font-family:var(--mono);font-size:10px;padding:1px 7px;cursor:pointer;}
+.zbtn:hover{border-color:var(--gdim);color:var(--green);}
+#bgmodetabs{display:flex;gap:3px;margin-bottom:6px;}
+.bgmtab{font-family:var(--mono);font-size:8px;padding:3px 8px;background:var(--well);border:1px solid var(--border);color:var(--tdim);cursor:pointer;}
+.bgmtab.active{border-color:var(--cyan);color:var(--cyan);background:rgba(77,217,255,.07);}
+#bginfo{font-family:var(--mono);font-size:8px;color:var(--tdim);margin-bottom:6px;line-height:1.6;}
+#bgcanvases{display:flex;flex-direction:column;gap:8px;}
+.bgv-label{font-family:var(--mono);font-size:8px;letter-spacing:.5px;padding-bottom:2px;}
+.bgv-scroll{overflow:auto;max-height:340px;border:1px solid var(--rule);}
+.bgv-scroll canvas{display:block;cursor:crosshair;}
+.bgv-count{font-family:var(--mono);font-size:8px;color:var(--tdim);padding-top:2px;font-variant-numeric:tabular-nums;}
+.bgv-count .hv{color:var(--gold);}
+
+/* export */
+.exgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:5px;}
+.exgrid label{font-family:var(--mono);font-size:8px;color:var(--tdim);display:flex;flex-direction:column;gap:2px;min-width:0;}
+.chk{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;color:var(--tdim);margin-bottom:5px;cursor:pointer;}
+.chk input{accent-color:var(--green);}
+#ex-out{height:76px;margin-top:5px;font-size:9px;}
+
+/* collapse + resize */
+#sb.cpx,#rp.cpx{width:30px!important;min-width:30px!important;}
+#sb.cpx>*:not(.ph),#rp.cpx>*:not(.ph){display:none;}
+.cpx .ph{flex-direction:column;padding:10px 4px;}
+.cpx .ph h1,.cpx .ph h2{writing-mode:vertical-rl;font-size:9px;letter-spacing:1px;}
+.cpx .ph p{display:none;}
+.cpbtn{background:none;border:1px solid var(--border);color:var(--tdim);font-family:var(--mono);font-size:10px;padding:2px 5px;cursor:pointer;flex-shrink:0;}
+.cpbtn:hover{border-color:var(--green);color:var(--green);}
+.rzh{width:5px;background:var(--bg);cursor:col-resize;flex-shrink:0;}
+.rzh:hover,.rzh.on{background:var(--gdim);}
+
+/* phone: stack */
+@media (max-width:760px){
+  body{flex-direction:column;overflow-y:auto;height:auto;min-height:100%;gap:8px;}
+  #sb,#rp{width:100%!important;min-width:0!important;}
+  #sb .scroll{max-height:none;}
+  #cv{flex:none;height:62vh;min-height:320px;border:1px solid var(--border);}
+  .rzh,.cpbtn{display:none;}
+}
+</style>
+</head>
+<body>
+<!-- LEFT: projects, input, waypoints -->
+<div id="sb">
+  <div class="ph">
+    <div><h1>MC Track Plotter</h1><p>// spline · arc · block planner</p></div>
+    <button class="cpbtn" id="sb-btn" type="button" aria-label="Collapse left panel">◀</button>
+  </div>
+  <div id="tabbar"></div>
+  <div class="scroll">
+    <div class="sec">
+      <div class="lbl"><span id="formtitle">// Add waypoint</span><span id="savebadge">saved</span></div>
+      <div class="nrow"><input type="text" id="pn" placeholder="Label (e.g. Station)" maxlength="32"></div>
+      <div class="crow">
+        <div class="cg"><label class="x" for="px">X  east+</label><input type="number" id="px" placeholder="0"></div>
+        <div class="cg"><label class="y" for="py">Y  up+</label><input type="number" id="py" placeholder="64"></div>
+        <div class="cg"><label class="z" for="pz">Z  south+</label><input type="number" id="pz" placeholder="0"></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="btn-add" type="button">+ Add</button>
+        <button class="btn edit" id="btn-save" type="button" hidden>Save changes</button>
+        <button class="btn alt" id="btn-cancel" type="button" hidden>Cancel</button>
+      </div>
+      <p class="note" style="margin-top:6px">Enter adds. Click a waypoint to edit it. Drag ⠿ to reorder.</p>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">// Layers</div>
+      <div class="lgrid">
+        <label class="ltog on" id="lyr-spline"><input type="checkbox" checked data-layer="spline"><span class="ldot" style="background:var(--cyan)"></span><span class="lname">Spline path</span></label>
+        <label class="ltog on" id="lyr-blocks"><input type="checkbox" checked data-layer="blocks"><span class="ldot" style="background:var(--gold)"></span><span class="lname">Track blocks</span></label>
+        <label class="ltog on" id="lyr-pts"><input type="checkbox" checked data-layer="pts"><span class="ldot" style="background:var(--green)"></span><span class="lname">Waypoints</span></label>
+        <label class="ltog" id="lyr-seg"><input type="checkbox" data-layer="seg"><span class="ldot" style="background:var(--amber)"></span><span class="lname">Seg arcs</span></label>
+        <label class="ltog on" id="lyr-grid"><input type="checkbox" checked data-layer="grid"><span class="ldot" style="background:var(--gdim)"></span><span class="lname">Grid + axes</span></label>
+      </div>
+      <div class="trow">
+        <label for="tension">Tension</label>
+        <input type="range" id="tension" min="0" max="1" step="0.05" value="0.5">
+        <span id="tval">0.50</span>
+      </div>
+      <p class="note" style="margin-top:4px">0 = loose sweeping curves · 0.5 = Catmull-Rom · 1 = tight, nearly straight</p>
+    </div>
+
+    <div class="sec">
+      <div class="lbl"><span>// Waypoints <b id="wct">(0)</b></span><button class="btn warn" id="btn-clear" type="button" style="flex:none;padding:2px 6px;font-size:8px">Clear all</button></div>
+      <div id="wplist"></div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">// Project file</div>
+      <div class="btnrow">
+        <button class="btn alt" id="btn-demo" type="button">Open demo coaster</button>
+      </div>
+      <div class="btnrow" style="margin-top:4px">
+        <button class="btn alt" id="btn-json" type="button">Copy JSON</button>
+        <button class="btn alt" id="btn-import" type="button">Import…</button>
+      </div>
+      <div id="importbox" hidden style="margin-top:6px">
+        <textarea id="importtxt" rows="4" placeholder="Paste project JSON, or choose a .json file below"></textarea>
+        <input type="file" id="importfile" accept=".json,application/json" style="font-family:var(--mono);font-size:9px;color:var(--tdim);margin:4px 0;width:100%">
+        <button class="btn" id="btn-doimport" type="button" style="width:100%">Load as new project</button>
+        <div class="err" id="importerr" hidden></div>
+      </div>
+      <textarea id="jsonfallback" rows="3" readonly hidden style="margin-top:5px"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="rzh" data-side="l"></div>
+
+<!-- CENTER: 3D view -->
+<div id="cv">
+  <canvas id="threecanvas"></canvas>
+  <div id="trackstat"></div>
+  <button id="rv" type="button">Reset view</button>
+  <div class="hint" id="al">
+    <div class="ax-x">X → east / west</div>
+    <div class="ax-y">Y ↑ up / down</div>
+    <div class="ax-z">Z → south / north</div>
+  </div>
+  <div class="hint" id="rh">Drag · rotate<br>Scroll · zoom<br>Right-drag / shift-drag · pan</div>
+</div>
+
+<div class="rzh" data-side="r"></div>
+
+<!-- RIGHT: analysis, block plans, export -->
+<div id="rp">
+  <div class="ph"><h2>Segment · Blocks</h2><button class="cpbtn" id="rp-btn" type="button" aria-label="Collapse right panel">▶</button></div>
+  <div class="scroll">
+    <div class="sec" id="an"><div id="anc"></div></div>
+
+    <div class="sec">
+      <div class="lbl">
+        <span>// Block plan</span>
+        <div class="zoom-btns">
+          <button class="zbtn" id="bgzoom-m" type="button" aria-label="Zoom out">−</button>
+          <button class="zbtn" id="bgzoom-f" type="button" style="font-size:8px">fit</button>
+          <button class="zbtn" id="bgzoom-p" type="button" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <div id="bgmodetabs">
+        <button class="bgmtab active" id="bgm-spline" type="button">Spline path</button>
+        <button class="bgmtab" id="bgm-arc" type="button">Ellipse arc</button>
+      </div>
+      <div id="bginfo"></div>
+      <div id="bgcanvases"></div>
+      <div class="empty" id="bgempty" hidden>Add 2+ waypoints and pick a segment to see its block layout.</div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl"><span>// Export blocks</span><span id="ex-count" style="color:var(--green)"></span></div>
+      <div class="exgrid">
+        <label>Scope<select id="ex-scope"><option value="seg">This segment</option><option value="all">Whole track</option></select></label>
+        <label>Format<select id="ex-fmt"><option value="cmd">/setblock commands</option><option value="fn">.mcfunction lines</option><option value="xyz">x y z list</option></select></label>
+        <label>Track block<input type="text" id="ex-block" value="minecraft:rail"></label>
+        <label>Support block<input type="text" id="ex-supblock" value="minecraft:stone_bricks"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="ex-sup" checked> Place a support block under every track block</label>
+      <button class="btn" id="btn-copyex" type="button" style="width:100%">Copy</button>
+      <textarea id="ex-out" readonly aria-label="Export preview"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const $=id=>document.getElementById(id);
+let wps=[], nextId=1, tension=0.5, selSeg=0;
+let layers={spline:true,blocks:true,pts:true,seg:false,grid:true};
+let selectedWp=null, editingId=null, hiddenWps=new Set();
+let zoomStep=0, bgMode='spline';
+let segBlocks=[];          // rasterised blocks per segment
+const COLORS=[0x3ddc84,0x4dd9ff,0xf0a500,0xff6b6b,0xc084fc,0xffd166,0x06d6a0,0xef476f,0x118ab2,0xa8ff78];
+const hex=c=>'#'+c.toString(16).padStart(6,'0');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ═══════════════════════════════════════════════════════
+// THREE SETUP
+// ═══════════════════════════════════════════════════════
+const canvas=$('threecanvas'), container=$('cv');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+renderer.setClearColor(0x070b07,1);
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x070b07,0.0012);
+const camera=new THREE.PerspectiveCamera(50,1,0.1,500000);
+scene.add(new THREE.AmbientLight(0xffffff,0.75));
+const dl=new THREE.DirectionalLight(0xffffff,0.55); dl.position.set(1,2,1.5); scene.add(dl);
+
+let sph={theta:Math.PI/4,phi:Math.PI/3,r:400}, tgt=new THREE.Vector3();
+function updateCam(){
+  camera.position.set(tgt.x+sph.r*Math.sin(sph.phi)*Math.cos(sph.theta),tgt.y+sph.r*Math.cos(sph.phi),tgt.z+sph.r*Math.sin(sph.phi)*Math.sin(sph.theta));
+  camera.lookAt(tgt);
+  scene.fog.density=0.35/Math.max(200,sph.r*2);
+}
+let drag=null;
+canvas.addEventListener('pointerdown',e=>{drag={pan:e.button===2||e.button===1||e.shiftKey,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointerup',()=>{drag=null;});
+canvas.addEventListener('pointercancel',()=>{drag=null;});
+canvas.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-drag.x,dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+  if(drag.pan){
+    const r=new THREE.Vector3().crossVectors(camera.getWorldDirection(new THREE.Vector3()),camera.up).normalize();
+    tgt.addScaledVector(r,-dx*sph.r*0.0015); tgt.addScaledVector(camera.up,dy*sph.r*0.0015);
+  }else{
+    sph.theta+=dx*0.005; sph.phi=Math.max(0.05,Math.min(Math.PI-0.05,sph.phi-dy*0.005));
+  }
+  updateCam();
+});
+canvas.addEventListener('wheel',e=>{e.preventDefault();sph.r=Math.max(5,sph.r*(1+Math.sign(e.deltaY)*0.1));updateCam();},{passive:false});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+function resetCam(){
+  if(!wps.length){sph={theta:Math.PI/4,phi:Math.PI/3,r:400};tgt.set(0,64,0);}
+  else{
+    const c=centroid(); tgt.set(c.x,c.y,c.z);
+    let mx=0; wps.forEach(p=>{mx=Math.max(mx,Math.hypot(p.x-c.x,p.y-c.y,p.z-c.z));});
+    sph={theta:Math.PI/4,phi:Math.PI/3,r:Math.max(40,mx*2.6)};
+  }
+  updateCam();
+}
+$('rv').onclick=resetCam;
+function resize(){
+  const w=container.clientWidth,h=container.clientHeight; if(!w||!h)return;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+new ResizeObserver(resize).observe(container);
+(function loop(){requestAnimationFrame(loop);renderer.render(scene,camera);})();
+
+function centroid(){
+  let x=0,y=0,z=0; wps.forEach(p=>{x+=p.x;y+=p.y;z+=p.z;});
+  const n=Math.max(1,wps.length); return {x:x/n,y:y/n,z:z/n};
+}
+
+// ═══════════════════════════════════════════════════════
+// GRID / AXES
+// ═══════════════════════════════════════════════════════
+let gridObj=null,axisObjs=[];
+function rebuildGrid(){
+  if(gridObj)scene.remove(gridObj); axisObjs.forEach(o=>scene.remove(o)); axisObjs=[];
+  const c=wps.length?centroid():{x:0,y:64,z:0};
+  let sp=100; wps.forEach(p=>{sp=Math.max(sp,Math.hypot(p.x-c.x,p.z-c.z));});
+  const gs=Math.ceil(sp*2.4/16)*16;                    // chunk-aligned size
+  const div=Math.min(64,Math.max(8,Math.round(gs/16)));  // one line per chunk where possible
+  const floorY=wps.length?Math.min(...wps.map(p=>p.y))-1:63;
+  gridObj=new THREE.GridHelper(gs,div,0x1e4a1e,0x0f240f);
+  gridObj.position.set(Math.round(c.x),floorY,Math.round(c.z)); gridObj.visible=layers.grid; scene.add(gridObj);
+  const al=gs*0.55;
+  const addAx=(a,b,col)=>{
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute([...a,...b],3));
+    const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:col,opacity:.55,transparent:true}));
+    l.visible=layers.grid; scene.add(l); axisObjs.push(l);
+  };
+  addAx([c.x-al,floorY,c.z],[c.x+al,floorY,c.z],0xff4444);
+  addAx([c.x,floorY,c.z],[c.x,floorY+al,c.z],0x44ff44);
+  addAx([c.x,floorY,c.z-al],[c.x,floorY,c.z+al],0x4488ff);
+}
+
+// ═══════════════════════════════════════════════════════
+// SPLINE (cardinal / Hermite — tension actually applies)
+// ═══════════════════════════════════════════════════════
+function hermite(p0,p1,p2,p3,t){
+  const s=1-tension, t2=t*t, t3=t2*t;
+  const h00=2*t3-3*t2+1, h10=t3-2*t2+t, h01=-2*t3+3*t2, h11=t3-t2;
+  const f=k=>h00*p1[k]+h10*s*(p2[k]-p0[k])+h01*p2[k]+h11*s*(p3[k]-p1[k]);
+  return {x:f('x'),y:f('y'),z:f('z')};
+}
+function segCurve(i,steps){
+  const n=wps.length, p0=wps[Math.max(0,i-1)], p1=wps[i], p2=wps[i+1], p3=wps[Math.min(n-1,i+2)];
+  const out=[]; for(let s=0;s<=steps;s++) out.push(hermite(p0,p1,p2,p3,s/steps)); return out;
+}
+const chord=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);
+
+// Turn one segment's curve into a gap-free chain of blocks. Each step moves at
+// most one block per axis, and X+Z diagonals are split into two straight moves,
+// because rails only connect along X or Z.
+function rasterizeSegment(i){
+  const steps=Math.max(32,Math.ceil(chord(wps[i],wps[i+1])*4));
+  const out=[], seen=new Set();
+  const push=q=>{const k=q.x+','+q.y+','+q.z; if(seen.has(k))return; seen.add(k); out.push(q);};
+  const step=q=>{
+    const last=out[out.length-1];
+    if(last&&Math.abs(q.x-last.x)===1&&Math.abs(q.z-last.z)===1) push({x:q.x,y:last.y,z:last.z});
+    push(q);
+  };
+  let prev=null;
+  for(const p of segCurve(i,steps)){
+    const q={x:Math.round(p.x),y:Math.round(p.y),z:Math.round(p.z)};
+    if(!prev){step(q);prev=q;continue;}
+    const dx=q.x-prev.x,dy=q.y-prev.y,dz=q.z-prev.z,n=Math.max(Math.abs(dx),Math.abs(dy),Math.abs(dz));
+    for(let k=1;k<=n;k++) step({x:Math.round(prev.x+dx*k/n),y:Math.round(prev.y+dy*k/n),z:Math.round(prev.z+dz*k/n)});
+    prev=q;
+  }
+  return out;
+}
+// A block directly above/below the previous one: rails can't climb that (max is 1 up per 1 across).
+function steepSpots(bl){let n=0;for(let k=1;k<bl.length;k++){const a=bl[k-1],b=bl[k];if(a.x===b.x&&a.z===b.z&&a.y!==b.y)n++;}return n;}
+function trackBlocks(){
+  const seen=new Set(),out=[];
+  segBlocks.forEach(bl=>bl.forEach(b=>{const k=b.x+','+b.y+','+b.z;if(!seen.has(k)){seen.add(k);out.push(b);}}));
+  return out;
+}
+function recompute(){segBlocks=[];for(let i=0;i<wps.length-1;i++)segBlocks.push(rasterizeSegment(i));}
+
+// ═══════════════════════════════════════════════════════
+// SEGMENT ARC (quarter-ellipse reference)
+// ═══════════════════════════════════════════════════════
+function segInfo(a,b){
+  const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+  const adx=Math.abs(dx),ady=Math.abs(dy),adz=Math.abs(dz);
+  const hd=Math.hypot(dx,dz), fd=Math.hypot(dx,dy,dz);
+  const isH=ady<2&&hd>1, isV=hd<2&&ady>1;
+  const plane=isH?'horizontal':isV?'vertical':'diagonal';
+  let ellW,ellH,note;
+  if(plane==='horizontal'){ellW=2*adx;ellH=2*adz;note=`Flat turn · ellipse ${ellW}×${ellH} (X×Z)`;}
+  else if(plane==='vertical'){ellW=2*Math.round(hd);ellH=2*ady;note=`Slope · ellipse ${ellW}×${ellH} (horiz×Y)`;}
+  else{ellW=2*adx;ellH=2*adz;note=`3D diagonal · ellipse ${ellW}×${ellH} + rise ${ady}`;}
+  return{adx,ady,adz,dist3d:Math.round(fd),distH:Math.round(hd),plane,ellW,ellH,note};
+}
+function buildArc(a,b,steps=48){
+  const pts=[],dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,hd=Math.hypot(dx,dz),H=Math.PI/2;
+  const isH=Math.abs(dy)<2&&hd>1,isV=hd<2&&Math.abs(dy)>1;
+  const sx=Math.sign(dx)||1,sy=Math.sign(dy)||1,sz=Math.sign(dz)||1;
+  for(let i=0;i<=steps;i++){
+    const t=i/steps*H;
+    if(isH) pts.push({x:a.x+Math.abs(dx)*Math.sin(t)*sx,y:a.y,z:a.z+Math.abs(dz)*(1-Math.cos(t))*sz});
+    else if(isV){const ph=hd*Math.sin(t),ux=dx/Math.max(hd,1e-3),uz=dz/Math.max(hd,1e-3);pts.push({x:a.x+ph*ux,y:a.y+Math.abs(dy)*(1-Math.cos(t))*sy,z:a.z+ph*uz});}
+    else pts.push({x:a.x+Math.abs(dx)*Math.sin(t)*sx,y:a.y+Math.abs(dy)*(1-Math.cos(t))*sy,z:a.z+Math.abs(dz)*(1-Math.cos(t))*sz});
+  }
+  return pts;
+}
+// Midpoint ellipse, first quadrant, relative to the ellipse centre.
+function quarterEllipseBlocks(rx,ry){
+  if(rx<1||ry<1)return[];
+  const set=new Set(); let x=0,y=ry; const rx2=rx*rx,ry2=ry*ry;
+  let p=Math.round(ry2-rx2*ry+0.25*rx2);
+  while(2*ry2*x<=2*rx2*y){set.add(x+','+y);x++;if(p<0)p+=2*ry2*x+ry2;else{y--;p+=2*ry2*x-2*rx2*y+ry2;}}
+  p=Math.round(ry2*(x+.5)*(x+.5)+rx2*(y-1)*(y-1)-rx2*ry2);
+  while(y>=0){set.add(x+','+y);y--;if(p>0)p+=rx2-2*rx2*y;else{x++;p+=2*ry2*x-2*rx2*y+rx2;}}
+  return [...set].map(s=>{const[a,b]=s.split(',').map(Number);return{x:a,y:b};});
+}
+
+// ═══════════════════════════════════════════════════════
+// 3D OBJECTS
+// ═══════════════════════════════════════════════════════
+let ptMeshes=[], splineMesh=null, segMeshes=[], blockMesh=null;
+function clearPts(){ptMeshes.forEach(m=>{scene.remove(m.mesh);scene.remove(m.glow);});ptMeshes=[];}
+function addPtMesh(wp){
+  const c=COLORS[wp.colorIdx%COLORS.length];
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(1.6,14,14),new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:.45,roughness:.3,metalness:.4}));
+  mesh.position.set(wp.x,wp.y,wp.z);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({color:c,transparent:true,opacity:.14,blending:THREE.AdditiveBlending,depthWrite:false}));
+  glow.position.copy(mesh.position); glow.scale.set(9,9,1);
+  const vis=layers.pts&&!hiddenWps.has(wp.id); mesh.visible=glow.visible=vis;
+  scene.add(mesh); scene.add(glow); ptMeshes.push({id:wp.id,mesh,glow});
+}
+function rebuildPts(){clearPts();wps.forEach(addPtMesh);highlightPt();}
+function highlightPt(){
+  ptMeshes.forEach(m=>{const on=m.id===selectedWp;m.mesh.material.emissiveIntensity=on?1.2:.45;m.glow.scale.set(on?18:9,on?18:9,1);m.glow.material.opacity=on?.28:.14;});
+}
+function rebuildBlocks(){
+  if(blockMesh){scene.remove(blockMesh);blockMesh.geometry.dispose();blockMesh.material.dispose();blockMesh=null;}
+  const total=segBlocks.reduce((a,b)=>a+b.length,0); if(!total)return;
+  blockMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(.94,.94,.94),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.75,metalness:.05}),total);
+  const m=new THREE.Matrix4(),c=new THREE.Color(); let n=0;
+  segBlocks.forEach((bl,i)=>{c.setHex(i===selSeg?0xffd166:0x2e7a50);bl.forEach(b=>{m.makeTranslation(b.x,b.y,b.z);blockMesh.setMatrixAt(n,m);blockMesh.setColorAt(n,c);n++;});});
+  blockMesh.instanceMatrix.needsUpdate=true; if(blockMesh.instanceColor)blockMesh.instanceColor.needsUpdate=true;
+  blockMesh.visible=layers.blocks; scene.add(blockMesh);
+}
+function redraw3D(){
+  if(splineMesh){scene.remove(splineMesh);splineMesh=null;}
+  segMeshes.forEach(m=>scene.remove(m)); segMeshes=[];
+  rebuildBlocks();
+  if(wps.length<2)return;
+  const sp=[]; for(let i=0;i<wps.length-1;i++){const c=segCurve(i,24);if(i)c.shift();sp.push(...c);}
+  splineMesh=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sp.map(p=>new THREE.Vector3(p.x,p.y,p.z))),new THREE.LineBasicMaterial({color:0x4dd9ff,opacity:.75,transparent:true}));
+  splineMesh.visible=layers.spline; scene.add(splineMesh);
+  for(let i=0;i<wps.length-1;i++){
+    const on=i===selSeg;
+    const am=new THREE.Line(new THREE.BufferGeometry().setFromPoints(buildArc(wps[i],wps[i+1]).map(p=>new THREE.Vector3(p.x,p.y,p.z))),new THREE.LineBasicMaterial({color:on?0xffd166:0xf0a500,opacity:on?.95:.4,transparent:true}));
+    am.visible=layers.seg; scene.add(am); segMeshes.push(am);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// LAYERS / TENSION
+// ═══════════════════════════════════════════════════════
+document.querySelectorAll('[data-layer]').forEach(cb=>cb.addEventListener('change',()=>setLayer(cb.dataset.layer,cb.checked)));
+function setLayer(name,val){
+  layers[name]=val; $('lyr-'+name).classList.toggle('on',val);
+  if(name==='grid'){if(gridObj)gridObj.visible=val;axisObjs.forEach(o=>o.visible=val);}
+  if(name==='spline'&&splineMesh)splineMesh.visible=val;
+  if(name==='blocks'&&blockMesh)blockMesh.visible=val;
+  if(name==='pts')ptMeshes.forEach(m=>{const v=val&&!hiddenWps.has(m.id);m.mesh.visible=m.glow.visible=v;});
+  if(name==='seg')segMeshes.forEach(m=>m.visible=val);
+}
+$('tension').addEventListener('input',e=>{tension=parseFloat(e.target.value);$('tval').textContent=tension.toFixed(2);commit(false);});
+
+// ═══════════════════════════════════════════════════════
+// WAYPOINTS
+// ═══════════════════════════════════════════════════════
+function readForm(){
+  const num=(id,d)=>{const v=$(id).value.trim();return v===''||isNaN(+v)?d:Math.round(+v);};
+  return {name:$('pn').value.trim(),x:num('px',0),y:num('py',64),z:num('pz',0)};
+}
+function clearForm(){['pn','px','py','pz'].forEach(id=>$(id).value='');}
+function addWp(){
+  const f=readForm();
+  wps.push({id:nextId,name:f.name||`WP${nextId}`,x:f.x,y:f.y,z:f.z,colorIdx:wps.length%COLORS.length}); nextId++;
+  clearForm(); commit(true); $('pn').focus();
+}
+function startEdit(wp){
+  editingId=wp.id; $('pn').value=wp.name; $('px').value=wp.x; $('py').value=wp.y; $('pz').value=wp.z;
+  $('btn-save').hidden=$('btn-cancel').hidden=false;
+  $('formtitle').textContent=`// Editing ${wps.indexOf(wp)+1}. ${wp.name}`;
+}
+function stopEdit(){editingId=null;$('btn-save').hidden=$('btn-cancel').hidden=true;$('formtitle').textContent='// Add waypoint';clearForm();}
+function saveEdit(){
+  const wp=wps.find(w=>w.id===editingId); if(!wp){stopEdit();return;}
+  const f=readForm(); wp.name=f.name||wp.name; wp.x=f.x; wp.y=f.y; wp.z=f.z;
+  stopEdit(); commit(false);
+}
+function removeWp(id){
+  wps=wps.filter(p=>p.id!==id); hiddenWps.delete(id);
+  if(selectedWp===id)selectedWp=null; if(editingId===id)stopEdit();
+  commit(false);
+}
+$('btn-add').onclick=addWp; $('btn-save').onclick=saveEdit; $('btn-cancel').onclick=stopEdit;
+['pn','px','py','pz'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();editingId?saveEdit():addWp();}if(e.key==='Escape'&&editingId)stopEdit();}));
+
+armButton($('btn-clear'),'Confirm clear',()=>{wps=[];hiddenWps.clear();selectedWp=null;stopEdit();commit(true);});
+
+let dragIdx=null,overIdx=null;
+function renderList(){
+  const list=$('wplist'); $('wct').textContent=`(${wps.length})`; list.innerHTML='';
+  if(!wps.length){list.innerHTML='<div class="empty">No waypoints yet. Enter coordinates above (F3 in-game shows them), or open the demo coaster.</div>';return;}
+  wps.forEach((wp,i)=>{
+    const c=hex(COLORS[wp.colorIdx%COLORS.length]), hid=hiddenWps.has(wp.id), sel=selectedWp===wp.id;
+    const div=document.createElement('div');
+    div.className='wpitem'+(sel?' sel':'')+(hid?' hid':''); div.draggable=true;
+    div.innerHTML=`<span class="drag">⠿</span><div class="wpdot" style="background:${c};box-shadow:0 0 ${sel?6:0}px ${c}"></div>`
+      +`<div class="wpinfo"><div class="wpname">${i+1}. ${esc(wp.name)}</div><div class="wpcoords">X ${wp.x}  Y ${wp.y}  Z ${wp.z}</div></div>`
+      +`<button class="ib eye" type="button" title="${hid?'Show':'Hide'} marker">${hid?'show':'hide'}</button>`
+      +`<button class="ib del" type="button" title="Delete">✕</button>`;
+    div.querySelector('.eye').onclick=e=>{e.stopPropagation();toggleWpVis(wp.id);};
+    div.querySelector('.del').onclick=e=>{e.stopPropagation();removeWp(wp.id);};
+    div.addEventListener('click',()=>selectWp(wp,i));
+    div.addEventListener('dragstart',()=>{dragIdx=i;setTimeout(()=>div.classList.add('dragging'),0);});
+    div.addEventListener('dragover',e=>{e.preventDefault();overIdx=i;list.querySelectorAll('.wpitem').forEach(el=>el.classList.remove('over'));div.classList.add('over');});
+    div.addEventListener('dragend',()=>{
+      div.classList.remove('dragging'); list.querySelectorAll('.wpitem').forEach(el=>el.classList.remove('over'));
+      if(dragIdx!==null&&overIdx!==null&&dragIdx!==overIdx){const t=wps.splice(dragIdx,1)[0];wps.splice(overIdx,0,t);commit(false);}
+      dragIdx=overIdx=null;
+    });
+    list.appendChild(div);
+  });
+}
+function selectWp(wp,idx){
+  if(selectedWp===wp.id){selectedWp=null;stopEdit();}
+  else{selectedWp=wp.id;startEdit(wp);if(idx<wps.length-1)selSeg=idx;else if(idx>0)selSeg=idx-1;}
+  renderList(); highlightPt(); refreshSegment();
+}
+function toggleWpVis(id){
+  hiddenWps.has(id)?hiddenWps.delete(id):hiddenWps.add(id);
+  const pm=ptMeshes.find(m=>m.id===id); if(pm)pm.mesh.visible=pm.glow.visible=layers.pts&&!hiddenWps.has(id);
+  renderList(); save();
+}
+
+// ═══════════════════════════════════════════════════════
+// ANALYSIS
+// ═══════════════════════════════════════════════════════
+function renderAnalysis(){
+  const el=$('anc');
+  if(wps.length<2){el.innerHTML='<div class="lbl">// Segment</div><div class="empty">Add 2+ waypoints. Each pair becomes a segment with its own block plan.</div>';return;}
+  const n=wps.length-1; if(selSeg>=n)selSeg=n-1;
+  let tabs='<div class="seg-tabs">';
+  for(let i=0;i<n;i++){const st=steepSpots(segBlocks[i]||[])>0;tabs+=`<button type="button" class="stab${i===selSeg?' active':''}${st?' steep':''}" data-seg="${i}" title="${st?'Too steep for rails in places':''}">${i+1}→${i+2}</button>`;}
+  tabs+='</div>';
+  const a=wps[selSeg],b=wps[selSeg+1],info=segInfo(a,b),bl=segBlocks[selSeg]||[],steep=steepSpots(bl);
+  const pc={horizontal:'p-h',vertical:'p-v',diagonal:'p-d'}[info.plane];
+  const pl={horizontal:'HORIZONTAL',vertical:'VERTICAL',diagonal:'3D DIAGONAL'}[info.plane];
+  const grade=info.distH?Math.round(info.ady/info.distH*100):(info.ady?Infinity:0);
+  el.innerHTML=`<div class="lbl">// Segment <b>${selSeg+1} of ${n}</b></div>${tabs}
+    <div class="rrow"><span class="rlbl">${esc(a.name)} → ${esc(b.name)}</span></div>
+    <div class="rrow"><span class="rlbl">STRAIGHT DIST</span><span class="rval">${info.dist3d} blk</span></div>
+    <div class="rrow"><span class="rlbl">ΔX / ΔY / ΔZ</span><span class="rval">${info.adx} / ${info.ady} / ${info.adz}</span></div>
+    <div class="rrow"><span class="rlbl">TRACK BLOCKS</span><span class="rval cy">${bl.length}</span></div>
+    <div class="rrow"><span class="rlbl">AVG GRADE</span><span class="rval${grade>100?' bad':''}">${grade===Infinity?'vertical':grade+'%'}</span></div>
+    <span class="pbadge ${pc}">${pl}</span>
+    <div class="rrow"><span class="rlbl">ELLIPSE W × H</span><span class="rval am">${info.ellW} × ${info.ellH} blk</span></div>
+    <p class="note" style="margin-top:4px">${info.note}</p>
+    ${steep?`<div class="warnbox">${steep} spot${steep>1?'s':''} climb straight up. Rails rise at most 1 block per block across. Spread these waypoints further apart or lower the drop.</div>`:''}`;
+  el.querySelectorAll('[data-seg]').forEach(t=>t.onclick=()=>setSeg(+t.dataset.seg));
+}
+function renderTrackStat(){
+  const s=$('trackstat');
+  if(wps.length<2){s.innerHTML='';return;}
+  const all=trackBlocks(), steep=segBlocks.reduce((a,b)=>a+steepSpots(b),0);
+  const ys=all.map(b=>b.y);
+  s.innerHTML=`TRACK <b>${all.length}</b> blocks · <b>${wps.length-1}</b> segments<br>Y range <b>${Math.min(...ys)}</b> → <b>${Math.max(...ys)}</b>`
+    +(steep?`<br><span class="w">${steep} too-steep spot${steep>1?'s':''}</span>`:'');
+}
+function setSeg(i){selSeg=i;segMeshes.forEach((m,k)=>{m.material.color.setHex(k===i?0xffd166:0xf0a500);m.material.opacity=k===i?.95:.4;});rebuildBlocks();refreshSegment();save();}
+function refreshSegment(){renderAnalysis();drawBlockGrid(selSeg);renderExport();}
+
+// ═══════════════════════════════════════════════════════
+// BLOCK PLAN VIEWS
+// ═══════════════════════════════════════════════════════
+function setBgMode(m){bgMode=m;$('bgm-spline').classList.toggle('active',m==='spline');$('bgm-arc').classList.toggle('active',m==='arc');drawBlockGrid(selSeg);}
+$('bgm-spline').onclick=()=>setBgMode('spline'); $('bgm-arc').onclick=()=>setBgMode('arc');
+$('bgzoom-m').onclick=()=>{zoomStep=Math.max(-3,zoomStep-1);drawBlockGrid(selSeg);};
+$('bgzoom-p').onclick=()=>{zoomStep=Math.min(8,zoomStep+1);drawBlockGrid(selSeg);};
+$('bgzoom-f').onclick=()=>{zoomStep=0;drawBlockGrid(selSeg);};
+
+// points: [{h,v}] in world block coords. markers: [{h,v,color,label}]
+function makeGridCanvas(points,hLabel,vLabel,title,blockColor,edgeColor,markers=[]){
+  if(!points.length)return null;
+  const hs=points.map(p=>p.h),vs=points.map(p=>p.v);
+  const minH=Math.min(...hs),maxH=Math.max(...hs),minV=Math.min(...vs),maxV=Math.max(...vs);
+  const rH=maxH-minH+1,rV=maxV-minV+1,pad=1,cols=rH+pad*2,rows=rV+pad*2;
+  const avail=Math.max(160,($('bgcanvases').clientWidth||250)-4);
+  const fitZ=Math.max(2,Math.min(20,Math.floor(avail/cols)));
+  let z=Math.max(2,Math.round(fitZ*Math.pow(1.5,zoomStep)));
+  z=Math.max(1,Math.min(z,Math.floor(6000/Math.max(cols,rows))));
+  const W=cols*z,H=rows*z;
+  const wrap=document.createElement('div');
+  const lbl=document.createElement('div'); lbl.className='bgv-label'; lbl.style.color=edgeColor; lbl.textContent=title; wrap.appendChild(lbl);
+  const sc=document.createElement('div'); sc.className='bgv-scroll'; wrap.appendChild(sc);
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; sc.appendChild(cv);
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#060d06'; ctx.fillRect(0,0,W,H);
+  if(z>=4){
+    ctx.lineWidth=1;
+    for(let x=0;x<=cols;x++){const wx=minH-pad+x;ctx.strokeStyle=wx%16===0?'#1e3a1e':'#0d1f0d';ctx.beginPath();ctx.moveTo(x*z+.5,0);ctx.lineTo(x*z+.5,H);ctx.stroke();}
+    for(let y=0;y<=rows;y++){const wv=minV-pad+y;ctx.strokeStyle=wv%16===0?'#1e3a1e':'#0d1f0d';ctx.beginPath();ctx.moveTo(0,H-y*z+.5);ctx.lineTo(W,H-y*z+.5);ctx.stroke();}
+  }
+  const cell=(h,v)=>[(h-minH+pad)*z,H-(v-minV+pad+1)*z];
+  const seen=new Set();
+  points.forEach(p=>{
+    const k=p.h+','+p.v; if(seen.has(k))return; seen.add(k);
+    const [px,py]=cell(p.h,p.v);
+    ctx.fillStyle=blockColor; ctx.fillRect(px+1,py+1,Math.max(1,z-1),Math.max(1,z-1));
+    if(z>=4){ctx.fillStyle=edgeColor;ctx.fillRect(px+1,py+1,z-1,2);ctx.fillRect(px+1,py+1,2,z-1);}
+  });
+  markers.forEach(m=>{
+    const [px,py]=cell(m.h,m.v);
+    ctx.strokeStyle=m.color; ctx.lineWidth=2; ctx.strokeRect(px+1,py+1,Math.max(2,z-1),Math.max(2,z-1));
+    if(z>=6){ctx.fillStyle=m.color;ctx.font=`${Math.min(12,Math.max(8,z))}px monospace`;ctx.fillText(m.label,Math.min(W-10,px+z+2),Math.max(10,py+z-1));}
+  });
+  const cnt=document.createElement('div'); cnt.className='bgv-count';
+  const base=`${hLabel} ${minH}→${maxH} · ${vLabel} ${minV}→${maxV} · ${seen.size} cells`;
+  cnt.textContent=base;
+  cv.addEventListener('mousemove',e=>{
+    const r=cv.getBoundingClientRect(),cx=Math.floor((e.clientX-r.left)*W/r.width/z),cy=Math.floor((e.clientY-r.top)*H/r.height/z);
+    const h=minH-pad+cx,v=minV-pad+(rows-1-cy),hit=seen.has(h+','+v);
+    cnt.innerHTML=`<span class="hv">${hLabel} ${h}, ${vLabel} ${v}${hit?' · block':''}</span> · ${seen.size} cells`;
+  });
+  cv.addEventListener('mouseleave',()=>{cnt.textContent=base;});
+  wrap.appendChild(cnt);
+  return wrap;
+}
+
+function drawBlockGrid(segIdx){
+  const cont=$('bgcanvases'),bginfo=$('bginfo'),bgempty=$('bgempty');
+  cont.innerHTML='';
+  if(segIdx<0||segIdx>=wps.length-1){bgempty.hidden=false;bginfo.textContent='';return;}
+  bgempty.hidden=true;
+  (bgMode==='spline'?renderSplineViews:renderArcViews)(segIdx);
+}
+
+function renderSplineViews(segIdx){
+  const cont=$('bgcanvases'),bginfo=$('bginfo'),blocks=segBlocks[segIdx]||[];
+  const a=wps[segIdx],b=wps[segIdx+1],s=blocks[0],e=blocks[blocks.length-1];
+  const xs=blocks.map(p=>p.x),ys=blocks.map(p=>p.y),zs=blocks.map(p=>p.z);
+  bginfo.innerHTML=`<span style="color:var(--cyan)">SPLINE PATH</span> · ${esc(a.name)} → ${esc(b.name)}<br>`
+    +`<span style="color:var(--green)">${blocks.length} blocks</span> · X ${Math.min(...xs)}→${Math.max(...xs)} · Y ${Math.min(...ys)}→${Math.max(...ys)} · Z ${Math.min(...zs)}→${Math.max(...zs)}<br>`
+    +`Gold box = start, red box = end. Brighter lines every 16 blocks (chunk borders). Hover for coordinates.`;
+  const mk=(hk,vk)=>[{h:s[hk],v:s[vk],color:'#ffd166',label:'A'},{h:e[hk],v:e[vk],color:'#ff5a5a',label:'B'}];
+  [['x','z','X','Z','TOP  (X / Z)  bird’s-eye','#1a3a1a','#4ddc84'],
+   ['x','y','X','Y','SIDE  (X / Y)  elevation','#1a2a3a','#4d9fff'],
+   ['z','y','Z','Y','FRONT  (Z / Y)  elevation','#3a1a3a','#c84ddc']]
+  .forEach(([hk,vk,hl,vl,t,bc,ec])=>{
+    const w=makeGridCanvas(blocks.map(p=>({h:p[hk],v:p[vk]})),hl,vl,t,bc,ec,mk(hk,vk));
+    if(w)cont.appendChild(w);
+  });
+}
+
+function renderArcViews(segIdx){
+  const cont=$('bgcanvases'),bginfo=$('bginfo'),bgempty=$('bgempty');
+  const a=wps[segIdx],b=wps[segIdx+1];
+  const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,horiz=Math.hypot(dx,dz);
+  const views=[
+    ['TOP  (X / Z)  arc','X','Z',Math.round(Math.abs(dx)),Math.round(Math.abs(dz)),'#1a3a1a','#4ddc84'],
+    ['SIDE  (horiz / Y)  arc','Horiz','Y',Math.round(horiz),Math.round(Math.abs(dy)),'#1a2a3a','#4d9fff'],
+    ['FRONT  (Z / Y)  arc','Z','Y',Math.round(Math.abs(dz)),Math.round(Math.abs(dy)),'#3a1a3a','#c84ddc'],
+  ];
+  let shown=0,first=null;
+  views.forEach(([t,hl,vl,rx,ry,bc,ec])=>{
+    if(rx<1||ry<1)return;
+    const pts=quarterEllipseBlocks(rx,ry).map(p=>({h:p.x,v:p.y}));
+    const w=makeGridCanvas(pts,hl,vl,`${t} · ${rx}×${ry} radius`,bc,ec);
+    if(w){cont.appendChild(w);shown++;if(!first)first=[rx,ry];}
+  });
+  if(!shown){bgempty.textContent='This segment runs along a single axis, so there is no curve to draw. Use the spline view.';bgempty.hidden=false;bginfo.textContent='';return;}
+  bginfo.innerHTML=`<span style="color:var(--amber)">ELLIPSE ARC</span> · ${esc(a.name)} → ${esc(b.name)}<br>`
+    +`Quarter of a full <span style="color:#4ddc84">${first[0]*2} × ${first[1]*2}</span> ellipse · ${shown} view${shown>1?'s':''}<br>`
+    +`Coordinates are relative to the ellipse centre. Use this when you want a clean textbook curve instead of the spline.`;
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════
+function exportText(){
+  const scope=$('ex-scope').value,fmt=$('ex-fmt').value;
+  const id=$('ex-block').value.trim()||'minecraft:rail',sid=$('ex-supblock').value.trim()||'minecraft:stone_bricks',sup=$('ex-sup').checked;
+  const blocks=scope==='seg'?(segBlocks[selSeg]||[]):trackBlocks();
+  if(fmt==='xyz')return{text:blocks.map(b=>`${b.x} ${b.y} ${b.z}`).join('\n'),n:blocks.length};
+  const sl=fmt==='cmd'?'/':'',lines=[];
+  if(sup)blocks.forEach(b=>lines.push(`${sl}setblock ${b.x} ${b.y-1} ${b.z} ${sid}`));  // supports first so rails have something to sit on
+  blocks.forEach(b=>lines.push(`${sl}setblock ${b.x} ${b.y} ${b.z} ${id}`));
+  return{text:lines.join('\n'),n:blocks.length};
+}
+function renderExport(){
+  const {text,n}=exportText(); $('ex-out').value=text;
+  $('ex-count').textContent=n?`${n} blocks`:'';
+}
+['ex-scope','ex-fmt','ex-sup'].forEach(id=>$(id).addEventListener('change',renderExport));
+['ex-block','ex-supblock'].forEach(id=>$(id).addEventListener('input',renderExport));
+$('btn-copyex').onclick=()=>copyText($('ex-out').value,$('btn-copyex'),$('ex-out'));
+
+function copyText(txt,btn,fallback){
+  const label=btn.textContent, done=msg=>{btn.textContent=msg;setTimeout(()=>btn.textContent=label,1400);};
+  const fb=()=>{fallback.hidden=false;fallback.value=txt;fallback.focus();fallback.select();done('Selected — press Ctrl+C');};
+  try{navigator.clipboard.writeText(txt).then(()=>done('Copied'),fb);}catch(e){fb();}
+}
+// Two-click confirm (the viewer blocks confirm() dialogs).
+function armButton(btn,armedText,action){
+  const label=btn.textContent; let t=null;
+  btn.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(btn.classList.contains('armed')){clearTimeout(t);btn.classList.remove('armed');btn.textContent=label;action();return;}
+    btn.classList.add('armed');btn.textContent=armedText;
+    t=setTimeout(()=>{btn.classList.remove('armed');btn.textContent=label;},2500);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// COMMIT (single redraw path)
+// ═══════════════════════════════════════════════════════
+function commit(recenter){
+  recompute(); rebuildPts(); rebuildGrid(); renderList(); redraw3D();
+  renderTrackStat(); refreshSegment(); if(recenter)resetCam(); save();
+}
+
+// ═══════════════════════════════════════════════════════
+// PROJECT TABS (saved in this browser)
+// ═══════════════════════════════════════════════════════
+const TAB_KEY='mc_tabs_v2';
+let projects=[], active=0, saveTimer=null;
+function snapshot(){return{wps:JSON.parse(JSON.stringify(wps)),nextId,tension,selSeg,hidden:[...hiddenWps]};}
+function save(){
+  if(projects[active])Object.assign(projects[active],snapshot());
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{localStorage.setItem(TAB_KEY,JSON.stringify({projects,active}));const b=$('savebadge');b.classList.add('show');setTimeout(()=>b.classList.remove('show'),900);}catch(e){}
+  },250);
+}
+function applyProject(i){
+  const p=projects[i]; active=i; stopEdit(); selectedWp=null;
+  wps=JSON.parse(JSON.stringify(p.wps||[])); nextId=p.nextId||wps.reduce((m,w)=>Math.max(m,w.id+1),1);
+  tension=p.tension??0.5; selSeg=p.selSeg||0; hiddenWps=new Set(p.hidden||[]);
+  $('tension').value=tension; $('tval').textContent=tension.toFixed(2);
+  renderTabs(); commit(true);
+}
+function newProject(name,points){
+  save();
+  const w=(points||[]).map((s,k)=>({id:k+1,name:s.name||`WP${k+1}`,x:Math.round(+s.x||0),y:Math.round(s.y===undefined?64:+s.y),z:Math.round(+s.z||0),colorIdx:k%COLORS.length}));
+  projects.push({id:Date.now(),name,wps:w,nextId:w.length+1,tension:0.5,selSeg:0,hidden:[]});
+  applyProject(projects.length-1);
+}
+function renderTabs(){
+  const bar=$('tabbar'); bar.innerHTML='';
+  projects.forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='tab'+(i===active?' active':''); d.title='Double-click to rename';
+    const nm=document.createElement('span'); nm.textContent=p.name; d.appendChild(nm);
+    if(projects.length>1){const x=document.createElement('button');x.type='button';x.className='tx';x.textContent='✕';x.title='Close project';armButton(x,'close?',()=>closeProject(i));d.appendChild(x);}
+    d.addEventListener('click',e=>{if(e.target.closest('.tx')||e.target.tagName==='INPUT')return;if(i!==active){save();applyProject(i);}});
+    d.addEventListener('dblclick',()=>renameProject(i,d,nm));
+    bar.appendChild(d);
+  });
+  const nb=document.createElement('button'); nb.type='button'; nb.className='tab-new'; nb.textContent='+'; nb.title='New project';
+  nb.onclick=()=>newProject('Project '+(projects.length+1),[]); bar.appendChild(nb);
+}
+function renameProject(i,tab,span){
+  const inp=document.createElement('input'); inp.type='text'; inp.value=projects[i].name; inp.maxLength=24;
+  span.replaceWith(inp); inp.focus(); inp.select();
+  const done=ok=>{if(ok&&inp.value.trim())projects[i].name=inp.value.trim();renderTabs();save();};
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')done(true);if(e.key==='Escape')done(false);});
+  inp.addEventListener('blur',()=>done(true));
+}
+function closeProject(i){projects.splice(i,1);if(active>=projects.length)active=projects.length-1;else if(i<active)active--;applyProject(Math.min(active,projects.length-1));}
+
+// ─── JSON import / export ───
+$('btn-json').onclick=()=>{
+  const p=projects[active];
+  const txt=JSON.stringify({name:p.name,tension,waypoints:wps.map(w=>({name:w.name,x:w.x,y:w.y,z:w.z}))},null,1);
+  copyText(txt,$('btn-json'),$('jsonfallback'));
+};
+$('btn-import').onclick=()=>{$('importbox').hidden=!$('importbox').hidden;};
+$('importfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('importtxt').value=r.result;};r.readAsText(f);});
+$('btn-doimport').onclick=()=>{
+  const err=$('importerr'); err.hidden=true;
+  try{
+    const d=JSON.parse($('importtxt').value);
+    const list=Array.isArray(d)?d:(d.waypoints||d.wps);
+    if(!Array.isArray(list)||!list.length)throw new Error('No waypoints found. Expected {"waypoints":[{"name","x","y","z"}]} or a plain array.');
+    if(list.some(w=>isNaN(+w.x)||isNaN(+w.z)))throw new Error('Every waypoint needs numeric x and z.');
+    newProject(String(d.name||'Imported').slice(0,24),list);
+    if(typeof d.tension==='number'){tension=d.tension;$('tension').value=tension;$('tval').textContent=tension.toFixed(2);commit(false);}
+    $('importbox').hidden=true; $('importtxt').value='';
+  }catch(e){err.textContent=e instanceof SyntaxError?'That is not valid JSON. Check for a missing bracket or comma.':e.message;err.hidden=false;}
+};
+
+// ═══════════════════════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════════════════════
+const COASTER=[
+  {name:'Station',x:0,y:64,z:0},{name:'Redstone launch',x:0,y:64,z:80},{name:'Impossible 180 turn',x:0,y:64,z:160},
+  {name:'Turn exit',x:-60,y:62,z:160},{name:'Cliff edge',x:-120,y:62,z:120},{name:'Cliff drop',x:-140,y:10,z:80},
+  {name:'Cave entry',x:-160,y:8,z:40},{name:'Cave run mid',x:-200,y:6,z:0},{name:'Cave bottom',x:-200,y:4,z:-60},
+  {name:'Redstone blast up',x:-160,y:4,z:-100},{name:'Sky launch peak',x:-120,y:180,z:-120},{name:'Hang time',x:-80,y:182,z:-140},
+  {name:'Free fall begin',x:-40,y:180,z:-140},{name:'Track catch, low',x:40,y:20,z:-180},{name:'Corkscrew entry',x:80,y:22,z:-160},
+  {name:'Corkscrew mid',x:120,y:40,z:-120},{name:'Corkscrew exit',x:100,y:18,z:-80},{name:'Sideways launcher',x:60,y:18,z:-60},
+  {name:'Chasm flight',x:0,y:22,z:-40},{name:'Catch other side',x:-60,y:20,z:-20},{name:'River run start',x:-80,y:16,z:20},
+  {name:'River mid',x:-80,y:14,z:80},{name:'River exit',x:-60,y:16,z:140},{name:'Final launch home',x:-20,y:18,z:160},
+  {name:'Climb to station',x:0,y:60,z:80},{name:'Back to station',x:0,y:64,z:0},
+];
+const STARTER=[{name:'Spawn platform',x:20,y:64,z:0},{name:'Cave entrance',x:50,y:58,z:35},{name:'Deep shaft',x:55,y:40,z:60},{name:'Ore vein',x:90,y:30,z:80}];
+$('btn-demo').onclick=()=>newProject('Demo coaster',COASTER);
+
+// ═══════════════════════════════════════════════════════
+// PANELS: collapse + resize
+// ═══════════════════════════════════════════════════════
+function cpanel(id){
+  const el=$(id),col=el.classList.toggle('cpx');
+  if(col){el.dataset.w=el.style.width;el.style.width=el.style.minWidth='';}
+  else if(el.dataset.w){el.style.width=el.style.minWidth=el.dataset.w;}
+  $(id+'-btn').textContent=id==='sb'?(col?'▶':'◀'):(col?'◀':'▶');
+  setTimeout(()=>{resize();drawBlockGrid(selSeg);},50);
+}
+$('sb-btn').onclick=()=>cpanel('sb'); $('rp-btn').onclick=()=>cpanel('rp');
+let rz=null;
+document.querySelectorAll('.rzh').forEach(h=>h.addEventListener('pointerdown',e=>{
+  e.preventDefault(); const side=h.dataset.side,t=$(side==='l'?'sb':'rp');
+  rz={side,h,t,x0:e.clientX,w0:t.offsetWidth}; h.classList.add('on'); h.setPointerCapture(e.pointerId);
+}));
+window.addEventListener('pointermove',e=>{
+  if(!rz)return;
+  const nw=Math.max(220,Math.min(560,rz.w0+(e.clientX-rz.x0)*(rz.side==='l'?1:-1)));
+  rz.t.classList.remove('cpx'); rz.t.style.width=rz.t.style.minWidth=nw+'px'; resize();
+});
+window.addEventListener('pointerup',()=>{if(!rz)return;rz.h.classList.remove('on');const r=rz.side==='r';rz=null;if(r)drawBlockGrid(selSeg);});
+
+// ═══════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════
+(function boot(){
+  try{const raw=localStorage.getItem(TAB_KEY);if(raw){const d=JSON.parse(raw);if(Array.isArray(d.projects)&&d.projects.length){projects=d.projects;active=Math.min(d.active||0,projects.length-1);}}}catch(e){}
+  if(!projects.length){
+    projects=[{id:Date.now(),name:'Project 1',wps:STARTER.map((s,k)=>({id:k+1,...s,colorIdx:k})),nextId:STARTER.length+1,tension:.5,selSeg:0,hidden:[]}];
+    active=0;
+  }
+  resize(); applyProject(active);
+})();
+</script>
+</body>
+</html>
