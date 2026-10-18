@@ -157,3 +157,11 @@ camera frames stay on the machine. Static hosting; deploys to Cloudflare Pages a
 This is the hands-mode front end for BHS Studio. When the DAW work resumes, Handspace
 becomes an input surface that writes into the studio's timeline rather than its own
 standalone loop.
+
+## Other tools in this repo
+
+- **`tools/mc-track-plotter/`** — MC Track Plotter, a standalone Minecraft rail/coaster
+  planner. Enter waypoints, see the spline in 3D, get a gap-free block plan per segment
+  (top / side / front), warnings where the track is too steep for rails, and copy-ready
+  `/setblock` commands. Open `tools/mc-track-plotter/index.html` in any browser (no
+  server needed; three.js loads from cdnjs). Projects save in that browser's local storage.
