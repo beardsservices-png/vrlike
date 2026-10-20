@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Lifted Tacoma Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: build-sheet workbench — 3D model beside the layer controls, the full-width layer grid under them, materials last */
+:root{
+  --bg:#eceef0; --panel:#ffffff; --line:#d3d7dc; --fg:#1d2126; --muted:#5d656e;
+  --accent:#d99a00; --accent-ink:#1d2126; --stage:#e3e6e9; --cell:#f4f5f6; --good:#2f8a4c;
+  --display:"Pixelify Sans", ui-monospace, monospace;
+  --body:"IBM Plex Sans", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#16191d; --panel:#1f2328; --line:#343a42; --fg:#e7eaed; --muted:#9aa3ad;
+  --accent:#f1b419; --accent-ink:#16191d; --stage:#8a9199; --cell:#262b31; --good:#5fc27e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#16191d; --panel:#1f2328; --line:#343a42; --fg:#e7eaed; --muted:#9aa3ad;
+  --accent:#f1b419; --accent-ink:#16191d; --stage:#8a9199; --cell:#262b31; --good:#5fc27e; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);line-height:1;margin:0;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:13px;border:1px solid var(--line);background:var(--panel);padding:4px 10px;border-radius:4px;font-variant-numeric:tabular-nums}
+.chip b{font-weight:600}
+.main{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:18px;align-items:start}
+@media (max-width:920px){.main{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.stage{position:relative;background:var(--stage);border-radius:4px;aspect-ratio:16/10;width:100%;max-width:100%;touch-action:none;cursor:grab;overflow:hidden}
+.stage:active{cursor:grabbing}
+.stage canvas{width:100%;height:100%;display:block}
+.hint{position:absolute;left:10px;bottom:8px;font-size:12px;font-family:var(--mono);color:#2b3036;opacity:.75;pointer-events:none}
+.loading{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);color:#2b3036;font-size:14px;text-align:center;padding:16px}
+.loading[hidden]{display:none}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,.toggle{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--cell);color:var(--fg);padding:6px 11px;border-radius:4px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:inline-flex;gap:6px;align-items:center;background:transparent}
+.toggle input{accent-color:var(--accent)}
+.stepper{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.stepper .big{font-family:var(--mono);font-weight:600;font-size:28px;line-height:1;font-variant-numeric:tabular-nums;min-width:6.5ch}
+.stepper .big small{font-size:16px;color:var(--muted)}
+.stepper button{font-size:18px;padding:4px 14px;font-weight:600}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--accent)}
+.note{margin:0;color:var(--fg)}
+.note .y{font-family:var(--mono);font-size:12px;color:var(--muted);display:block}
+.gridhead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.gridbox{overflow:auto;max-height:80vh;border:1px solid var(--line);border-radius:4px;background:var(--cell)}
+.gridbox canvas{display:block}
+.cellinfo{font-family:var(--mono);font-size:13px;color:var(--muted);min-height:1.5em}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px 14px;margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:8px;font-size:14px;min-width:0}
+.sw{width:22px;height:22px;border-radius:3px;flex:none;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:600;border:1px solid rgba(127,127,127,.35)}
+.legend .n{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.done{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px}
+.prog{flex:1;min-width:120px;height:8px;background:var(--cell);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--good);width:0}
+h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+th.num{text-align:right}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 22px;margin:0;padding:0;list-style:none}
+.tips li{min-width:0}
+.tips b{display:block;font-size:14px}
+.tips span{color:var(--muted);font-size:14px}
+.sizes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px}
+.sz{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sz span{font-size:14px;color:var(--muted)}
+.sz b{font-family:var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
+.sz input{width:100%}
+.runs summary{cursor:pointer;font-weight:600}
+.runs ol{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 22px}
+.runs li{font-size:14px;min-width:0;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:5px}
+.runs .rn{font-family:var(--mono);font-weight:600;flex:none;width:7ch;white-space:nowrap}
+.runs .rs{display:flex;flex-wrap:wrap;gap:4px 10px;min-width:0}
+.runs .r1{display:inline-flex;gap:5px;align-items:center;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.runs .r1 i{width:12px;height:12px;border-radius:2px;border:1px solid rgba(127,127,127,.4);flex:none}
+.layers{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px}
+.layers button{font-family:var(--mono);font-size:12px;padding:3px 0}
+.layers button.cur{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.layers button.ok{box-shadow:inset 0 -3px 0 var(--good)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.shelf{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.bcard{flex:none;width:132px;display:flex;flex-direction:column;gap:6px;padding:8px;text-align:left;background:var(--cell);border:1px solid var(--line);border-radius:5px;cursor:pointer;font:inherit;color:var(--fg)}
+.bcard.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.bcard .th{width:100%;aspect-ratio:4/3;border-radius:3px;background:var(--panel) center/contain no-repeat;image-rendering:pixelated;display:grid;place-items:center;font-family:var(--display);font-size:22px;color:var(--muted)}
+.bcard span{font-size:13px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bcard.add{border-style:dashed;justify-content:center;align-items:center;text-align:center}
+.bcard.add input{position:absolute;width:1px;height:1px;opacity:0}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field span{font-size:14px;color:var(--muted)}
+.field b{font-family:var(--mono);color:var(--fg)}
+.field input[type=text],.field input[type=number],.field select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--cell);color:var(--fg);min-width:0;width:100%}
+.danger{border-color:#b3322e;color:#b3322e}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.tvbtn{font-size:16px;padding:10px 16px}
+.coords{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px 16px}
+.tv{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;display:flex;flex-direction:column;gap:16px;
+  padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tvtop{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between}
+.tvtop .where{font-family:var(--mono);font-size:clamp(20px,3vw,34px);font-weight:600;font-variant-numeric:tabular-nums}
+.tvtop .name{font-family:var(--display);font-size:clamp(18px,2.4vw,26px)}
+.tvstrip{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px}
+.tvstrip canvas{display:block}
+.tvruns{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tvruns li{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:clamp(18px,2.3vw,28px);padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.tvruns i{width:1.3em;height:1.3em;border-radius:4px;border:1px solid rgba(127,127,127,.4);flex:none}
+.tvruns .ct{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.copy{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--cell);color:var(--fg);padding:6px 12px;border-radius:4px;cursor:pointer}
+.tvruns .xyz{font-family:var(--mono);font-size:.75em;color:var(--muted);font-variant-numeric:tabular-nums}
+.tvbottom{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-top:auto}
+.tvbottom canvas{max-width:100%;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.tvbtns{display:flex;gap:12px;flex-wrap:wrap}
+.tvbtns button{font-size:clamp(18px,2.2vw,26px);padding:14px 24px}
+.tvprog{font-family:var(--mono);color:var(--muted)}
+details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="bname">Lifted Tacoma</h1>
+      <p id="bdesc"></p>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <section class="card" aria-label="My builds">
+    <div class="gridhead"><h2>My builds</h2><span class="cellinfo" id="libinfo">Saved in this browser.</span></div>
+    <div class="shelf" id="shelf"></div>
+  </section>
+
+  <section class="card" aria-label="Size" id="sizecard">
+    <div class="gridhead"><h2>Size</h2>
+      <div class="row"><label class="toggle"><input type="checkbox" id="lock" checked> Keep proportions</label><button id="inch">1 block = 2 inches</button></div></div>
+    <div class="sizes">
+      <label class="sz"><span>Length <b id="vL">102</b></span><input type="range" id="sL" min="40" max="222" value="102"></label>
+      <label class="sz"><span>Width <b id="vW">36</b></span><input type="range" id="sW" min="14" max="78" value="36"></label>
+      <label class="sz"><span>Height <b id="vH">41</b></span><input type="range" id="sH" min="16" max="90" value="41"></label>
+    </div>
+    <div class="cellinfo" id="sizeinfo">Drag a slider and let go to rebuild. Full blocks only, no stairs or slabs.</div>
+  </section>
+
+  <section class="card" aria-label="Picture settings" id="piccard" hidden>
+    <div class="gridhead"><h2>Picture settings</h2>
+      <div class="row" id="delrow"><button id="del" class="danger">Delete this build</button></div></div>
+    <div class="sizes">
+      <label class="field"><span>Name</span><input type="text" id="pname" maxlength="40"></label>
+      <label class="sz"><span>Width <b id="vPW">64</b> blocks · height <b id="vPH">64</b></span><input type="range" id="pw" min="8" max="256" value="64"></label>
+      <label class="sz"><span>Thickness <b id="vPT">1</b></span><input type="range" id="pt" min="1" max="8" value="1"></label>
+      <label class="field"><span>Stand it</span><select id="por"><option value="up">Upright, like a wall</option><option value="flat">Flat on the ground</option></select></label>
+      <label class="field"><span>Blocks to use</span><select id="ppal"><option value="cw">Concrete and wool</option><option value="c">Concrete only</option><option value="all">Every full color block</option></select></label>
+      <label class="toggle"><input type="checkbox" id="pbg"> Leave the background empty</label>
+    </div>
+    <div class="cellinfo" id="picinfo">Changes rebuild when you let go. Transparent parts of a PNG are left empty.</div>
+  </section>
+
+  <div class="main">
+    <section class="card" aria-label="3D model">
+      <div class="stage" id="stage"><canvas id="cv3"></canvas><div class="loading" id="loading">Building…</div><span class="hint">drag to turn · scroll or pinch to zoom · red post = starting block</span></div>
+      <div class="row">
+        <button data-view="front">Front</button>
+        <button data-view="side">Side</button>
+        <button data-view="rear">Back</button>
+        <button data-view="top">Top</button>
+        <label class="toggle"><input type="checkbox" id="ghost" checked> Show the rest faintly</label>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Layer controls">
+      <button id="tvopen" class="primary tvbtn">TV build mode: one row at a time</button>
+      <div class="stepper">
+        <button id="prev" aria-label="Previous layer">‹</button>
+        <div class="big" id="lnum">1 <small>/ 60</small></div>
+        <button id="next" aria-label="Next layer">›</button>
+        <input type="range" id="slider" min="1" max="60" value="60" aria-label="Layer">
+      </div>
+      <p class="note" id="note"></p>
+      <ul class="legend" id="legend"></ul>
+      <div class="done">
+        <label class="toggle"><input type="checkbox" id="isdone"> Layer finished</label>
+        <div class="prog" aria-hidden="true"><i id="progbar"></i></div>
+        <span class="chip" id="progtxt">0 / 60</span>
+      </div>
+      <div class="layers" id="layers" aria-label="Jump to layer"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-label="Starting block">
+    <div class="gridhead"><h2>Starting block</h2><button id="aclear">Clear</button></div>
+    <p class="note" id="anchornote"></p>
+    <div class="coords">
+      <label class="field"><span>X</span><input type="number" id="ax" inputmode="numeric"></label>
+      <label class="field"><span>Y</span><input type="number" id="ay" inputmode="numeric"></label>
+      <label class="field"><span>Z</span><input type="number" id="az" inputmode="numeric"></label>
+      <label class="field"><span>Columns run toward</span><select id="acol"><option value="E">East (+X)</option><option value="W">West (−X)</option><option value="S">South (+Z)</option><option value="N">North (−Z)</option></select></label>
+      <label class="field"><span>Rows run toward</span><select id="arow"></select></label>
+    </div>
+    <div class="cellinfo" id="anchorinfo">Fill in X, Y and Z to see in-game coordinates on every row.</div>
+  </section>
+
+  <section class="card" aria-label="Layer plan">
+    <div class="gridhead">
+      <h2 id="gridtitle">Layer 1</h2>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="below" checked> Show layer below</label>
+        <label class="toggle"><input type="checkbox" id="hollow" checked> Skip hidden blocks</label>
+        <button id="zout" aria-label="Zoom out">−</button>
+        <button id="zfit">Fit</button>
+        <button id="zin" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="gridbox" id="gridbox"><canvas id="grid"></canvas></div>
+    <div class="cellinfo" id="cellinfo">Hover or tap a square to see its block and position. Zoom in to see block letters.</div>
+    <details class="runs" id="runsbox" open><summary>Row by row, for this layer</summary><ol id="runs"></ol></details>
+  </section>
+
+  <section class="card">
+    <details class="counts"><summary>Block counts</summary>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Block</th><th>Used for</th><th class="num">Blocks</th><th class="num">Stacks of 64</th></tr></thead>
+        <tbody id="mats"></tbody>
+      </table></div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>How to read the plan</h2>
+    <ul class="tips">
+      <li><b>One square = one block</b><span>Columns run left to right on the grid, rows top to bottom. On the truck, col 1 is the bull bar and row 1 is the passenger side. Thick lines every 10.</span></li>
+      <li><b>Starting block</b><span>Col 1, row 1, layer 1 is the corner everything is measured from. It's the red post in the 3D view and the red square on layer 1.</span></li>
+      <li><b>TV build mode</b><span>Shows one row at a time, big. Tap "Done, next row" after each one; it remembers where you stopped.</span></li>
+      <li><b>From a picture</b><span>Add any PNG or JPG and it becomes a block build, saved in this browser. Transparent parts of a PNG are left empty.</span></li>
+      <li><b>Skip hidden blocks</b><span>Leaves out blocks nobody can see from outside, so solid shapes are built as shells.</span></li>
+      <li><b>Commands</b><span>With the starting block filled in, TV build mode gives a ready /fill command for each run, so one command places a whole line. All the commands are in the <a href="https://claude.ai/artifact/Jg2ZK9nHkyVzkv5LFSoe5V" target="_blank" rel="noopener">Bedrock Command Guide</a>.</span></li>
+      <li><b>Glass sits flush</b><span>Use full stained-glass blocks, not panes.</span></li>
+    </ul>
+  </section>
+</div>
+
+<div class="tv" id="tv" hidden role="dialog" aria-label="TV build mode">
+  <div class="tvtop">
+    <span class="name" id="tvname"></span>
+    <span class="where" id="tvwhere"></span>
+    <span class="tvprog" id="tvprog"></span>
+    <button id="tvexit" class="tvbtn">Exit</button>
+  </div>
+  <div class="tvstrip"><canvas id="tvrow"></canvas></div>
+  <ol class="tvruns" id="tvruns"></ol>
+  <div class="tvbottom">
+    <canvas id="tvmap"></canvas>
+    <div class="tvbtns"><button id="tvback">◀ Back</button><button id="tvskip">Skip</button><button id="tvnext" class="primary">Done, next row ▶</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ---------- block catalog: index = voxel value ----------
+const CAT=[null], CATIDX={};
+function addBlock(name,c,ex){ex=ex||{};
+  if(CATIDX[name]){if(ex.m)CAT[CATIDX[name]].m=ex.m;return CATIDX[name];}
+  CAT.push(Object.assign({name,c,m:c},ex));return CATIDX[name]=CAT.length-1;}
+const B=addBlock('Black Concrete','#24272d',{m:'#080a0f',use:'Body, hood, doors, roof, fender flares, mirrors, wheel tubs'});
+const T=addBlock('Black Wool','#34353b',{m:'#141519',use:'Tires'});
+const P=addBlock('Polished Blackstone','#3d3c41',{m:'#35303b',use:'Hard bed cover, rim spokes, dashboard, bed liner, door handles'});
+const G=addBlock('Gray Concrete','#5a6067',{m:'#373a3e',use:'Frame, axles, diffs, driveshaft, shocks, steering wheel'});
+const I=addBlock('Iron Block','#dcdfe1',{use:'Chrome bull bar tube, wheel center caps, headlight projectors'});
+const S_=addBlock('Smooth Stone','#a9aaaa',{m:'#9e9e9e',use:'Tube running boards, rim lip rings, rear bumper'});
+const W=addBlock('Light Gray Stained Glass','#a7b0b8',{glass:.5,use:'Windshield and windows'});
+const H=addBlock('White Stained Glass','#f3f5f6',{glass:.85,use:'Headlights, reverse lights'});
+const Yc=addBlock('Yellow Concrete','#f1b419',{m:'#f1af15',use:'Headlight inner trim'});
+const O=addBlock('Orange Concrete','#e0650f',{m:'#e06101',use:'Side marker lights'});
+const R=addBlock('Red Concrete','#a8282c',{m:'#8e2121',use:'Tail lights'});
+const K=addBlock('Blackstone','#16131a',{m:'#2a2328',use:'Mesh grille, LED bar housing, intake, rim recess, door seams, scoop vent'});
+const Q=addBlock('Quartz Block','#ede8e2',{use:'TACOMA badge, TRD Sport decal'});
+const F=addBlock('Sea Lantern','#d6ece8',{m:'#acc8be',use:'LED light bar, fog lights'});
+const U=addBlock('Gray Wool','#62676d',{m:'#3e4447',use:'Seats and headrests'});
+const TACODE={[B]:'B',[T]:'T',[P]:'P',[G]:'G',[I]:'I',[S_]:'S',[W]:'W',[H]:'H',[Yc]:'Y',[O]:'O',[R]:'R',[K]:'K',[Q]:'Q',[F]:'F',[U]:'U'};
+
+// colors for pictures (Minecraft's average texture colors)
+const DYES=['White','Orange','Magenta','Light Blue','Yellow','Lime','Pink','Gray','Light Gray','Cyan','Purple','Blue','Brown','Green','Red','Black'];
+const CONC=['#cfd5d6','#e06101','#a9309f','#2489c7','#f1af15','#5ea918','#d5658f','#373a3e','#7d7d73','#157788','#64209c','#2d2f8f','#603c20','#495b24','#8e2121','#080a0f'];
+const WOOLC=['#e9ecec','#f07613','#bd44b3','#3aafd9','#f8c627','#70b919','#ed8dac','#3e4447','#8e8e86','#158991','#792aac','#35399d','#724728','#546d1b','#a12722','#141519'];
+const TERC=['#d1b2a1','#a15325','#95576c','#716c89','#ba8523','#677534','#a04d4e','#392a23','#876b62','#575b5b','#764656','#4a3b5b','#4d3323','#4c532a','#8f3d2e','#251610'];
+const OTHER=[['Terracotta','#985e43'],['Quartz Block','#ece6df'],['Smooth Stone','#9e9e9e'],['Stone','#7d7d7d'],['Iron Block','#dcdcdc'],['Gold Block','#f6d03d'],['Diamond Block','#62ede4'],['Emerald Block','#2acb57'],['Lapis Lazuli Block','#1f438c'],['Redstone Block','#af1805'],['Coal Block','#101010'],['Snow Block','#f9fefe'],['Sandstone','#d8cb9b'],['Red Sandstone','#ba631d'],['Oak Planks','#a2834f'],['Spruce Planks','#735531'],['Birch Planks','#c0af79'],['Dark Oak Planks','#422b14'],['Acacia Planks','#a85a32'],['Jungle Planks','#a07351'],['Cherry Planks','#e2b2ac'],['Prismarine','#639c97'],['Dark Prismarine','#335b4b'],['Purpur Block','#a97da9'],['End Stone','#dbde9e'],['Nether Bricks','#2c161a'],['Blackstone','#2a2328'],['Deepslate','#505053'],['Bricks','#976253'],['Packed Ice','#8db4fa'],['Honeycomb Block','#e5941e']];
+const concIdx=DYES.map((d,i)=>addBlock(d+' Concrete',CONC[i],{m:CONC[i]}));
+const woolIdx=DYES.map((d,i)=>addBlock(d+' Wool',WOOLC[i],{m:WOOLC[i]}));
+const terrIdx=DYES.map((d,i)=>addBlock(d+' Terracotta',TERC[i],{m:TERC[i]}));
+const otherIdx=OTHER.map(([n,c])=>addBlock(n,c,{m:c}));
+const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
+
+// ---------- the truck, as a shape sampled at 4 blocks per unit ----------
+let SX=4,SY=4,SZ=4,X,Y,Z,N,vox,exposed,TH=.3,TB=.5;
+const WHEELS=[7.5,30.5], WY=3.5;
+const BAR=[[[0.75,3.5,2.9],[0.5,7.3,2.9]],[[0.75,3.5,10.1],[0.5,7.3,10.1]],[[0.5,7.3,2.9],[0.45,8.1,3.9]],[[0.45,8.1,3.9],[0.45,8.1,9.1]],[[0.45,8.1,9.1],[0.5,7.3,10.1]],[[0.6,4.6,2.9],[1.2,4.6,2.9]],[[0.6,4.6,10.1],[1.2,4.6,10.1]]];
+function segDist(p,a,b){const ab=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],ap=[p[0]-a[0],p[1]-a[1],p[2]-a[2]];
+  const t=Math.max(0,Math.min(1,(ap[0]*ab[0]+ap[1]*ab[1]+ap[2]*ab[2])/(ab[0]*ab[0]+ab[1]*ab[1]+ab[2]*ab[2])));
+  return Math.hypot(ap[0]-ab[0]*t,ap[1]-ab[1]*t,ap[2]-ab[2]*t);}
+const xs=y=>13.2+(y-10.45)*0.75;                      // windshield slope
+const roof=x=>15-Math.pow((x-20.2)/4.7,2)*0.35;        // gently curved roof
+function topLine(x){if(x<2.5)return 9.6+(x-1)*0.4/1.5; if(x<13.2)return 10+(x-2.5)*0.04; return 10.6;}
+function logo(c,y){
+  const e1=(c/0.95)**2+((y-7.85)/0.62)**2; if(e1>=0.6&&e1<=1)return true;
+  const e2=(c/0.7)**2+((y-8.12)/0.26)**2; if(e2>=0.45&&e2<=1)return true;
+  const e3=(c/0.28)**2+((y-7.68)/0.48)**2; return e3>=0.4&&e3<=1;
+}
+function interior(x,y,c,az){
+  if(x<15.2&&y>=9.3&&y<=10.6)return P;                                   // dash
+  const rr=Math.hypot(y-10.25,c-2.9);
+  if(x>=15.6&&x<16&&(Math.abs(rr-0.6)<0.15||(rr<0.6&&Math.abs(y-10.25)<0.13)))return G; // steering wheel
+  for(const s of[-3,3]){const d=Math.abs(c-s);
+    if(d<1.4){if(x>=16.5&&x<18.6&&y<7)return U; if(x>=18.6&&x<19.3&&y<10.8)return U;}
+    if(d<0.7&&x>=18.6&&x<19.2&&y>=11&&y<11.9)return U;}
+  if(az<4.6){if(x>=21.2&&x<23.4&&y<7)return U; if(x>=23.6&&x<24.4&&y<10.9)return U;
+    for(const s of[-3,0,3])if(Math.abs(c-s)<0.6&&x>=23.6&&x<24.3&&y>=11&&y<11.8)return U;}
+  return 0;
+}
+function classify(x,y,z){
+  const c=z-6.5, az=Math.abs(c);
+  // wheels: tread grooves, 8-spoke rims, hub cap
+  for(const cx of WHEELS){const dx=x-cx,dy=y-WY,r=Math.hypot(dx,dy);
+    if(r<=3.5&&az>=4.3){const out=6.5-az;
+      if(r>3.15&&(out<0.25||az<4.55))return 0;
+      if(r>2.35){if(r>3.2){const a=Math.atan2(dy,dx);if(Math.floor((a+Math.PI)/(2*Math.PI)*30)%2&&out>0.5&&out<1.7)return 0;}return T;}
+      if(out<0.25){const a=Math.atan2(dy,dx); if(r<0.6)return I; if(r>1.9)return(Math.floor((a+Math.PI)/(2*Math.PI)*24)%4===0)?P:S_; const seg=Math.PI/4; let m=((a%seg)+seg)%seg; m=Math.min(m,seg-m); return (m*r<0.28||r<0.8)?P:0;}
+      return out<0.5?K:G;
+    }}
+  // bull bar and skid plates
+  if(x<1.3)for(const[a,b]of BAR)if(segDist([x,y,z],a,b)<0.46)return I;
+  if(x>=0.2&&x<0.85&&y>=6.0&&y<6.75&&z>=3.3&&z<=9.7)return x<0.5&&z>3.5&&z<9.5?F:K;
+  // underneath: frame, axles, diffs, shocks, driveshaft
+  if(y<5&&x>=3&&x<36){
+    if(y>=4.1&&y<4.9&&az>=2.6&&az<3.25)return G;
+    for(const cx of WHEELS){if(Math.hypot(x-cx,y-WY)<0.42&&az<4.4)return G; if(Math.hypot(x-cx,y-3.4,c)<1.05)return G;
+      if(Math.hypot(x-(cx+1.3),az-3.3)<0.32&&y>=3.5)return G;}
+    if(x>8.5&&x<29.5&&Math.hypot(y-3.7,c)<0.3)return G;
+  }
+  // mirrors, running boards, fender flares, wheel wells
+  if(x>=14.2&&x<15.4&&y>=10.8&&y<12.2&&az>=5.3)return B;
+  if(x>=14.6&&x<15.1&&y>=10.5&&y<11&&az>=4.8&&az<5.5)return B;
+  if(x>=13.5&&x<25.5&&Math.hypot(y-4.45,az-5.55)<0.42)return S_;
+  if(x>=13.5&&x<25.5&&y>=4.65&&y<5.1&&az>=5&&az<5.5&&(x%3)<0.4)return K;
+  for(const cx of WHEELS){const r=Math.hypot(x-cx,y-WY);
+    if(r>=4.25&&r<5&&y>=4.2&&az>=4.9&&az<6.3)return B;
+    if(r<4.25&&az>3.5)return 0;}
+  // hood scoop
+  const t=topLine(x);
+  if(x>=5&&x<10.5&&az<2.2&&y>=t&&y<t+0.65*Math.min(1,(x-5)/0.8+0.3))return(x<5.4&&az<1.8&&y>t+0.12)?K:B;
+  // body envelope
+  if(x<1||x>=37)return 0;
+  const bot=(x<3||x>=36)?4:5; if(y<bot)return 0;
+  const inCab=x>=13.2&&x<24.9;
+  if(inCab?!(y<=10.45||(x>=xs(y)&&y<=roof(x))):y>t)return 0;
+  const tt=inCab?roof(x):t;
+  let h=5.5; if(x<2.2)h-=(2.2-x)*(2.2-x)*0.45;
+  if(inCab&&y>10.6)h=5.35-(y-10.6)*0.22;
+  if(y>tt-0.5)h-=(y-(tt-0.5))*0.9;
+  if(y<bot+0.35)h-=(bot+0.35-y)*0.8;
+  if(az>h)return 0;
+  const side=az>h-TH;
+  // nose
+  if(x<1.5){
+    if(y>=8&&y<9.7&&az>=3&&az<5.1){if(az<3.5)return Yc; if(Math.hypot(az-4.1,y-8.85)<0.45)return I; return H;}
+    if(az<2.9&&y>=6&&y<9.4){
+      if(az>2.6||y>9.15||y<6.25)return B;
+      if(x<1.25)return(Math.floor(y*SY)+Math.floor(z*SZ))%2?K:0;
+      return K;}
+    if(y>=4.75&&y<5.75&&az<2.5)return x<1.25?0:K;
+    if(Math.hypot(az-4,y-5.4)<0.45)return F;
+  }
+  if(side&&x<3.2&&y>=8&&y<9.7)return(x>=2.6&&y<8.6)?O:H;
+  // tail
+  if(x>=36){
+    if(y<5.25)return S_;
+    if(y>=7.2&&y<10.2&&az>=4.1&&(x>=36.75||side))return(y>=8.2&&y<8.7)?H:R;
+    if(x>=37-TB/2&&y>=9.4&&y<9.9&&az<0.8)return P;
+  }
+  // door seams, handles, badge
+  if(side&&y>=5.5&&y<10.4){
+    if((x>=13.6&&x<13.85)||(x>=19.4&&x<19.65))return K;
+    if(y>=9.5&&y<9.8&&((x>=17.2&&x<18)||(x>=22.6&&x<23.4)))return P;
+    if(x>=10.5&&x<12.5&&y>=8.5&&y<8.75)return Q;
+    if(x>=32.6&&x<35.4&&y>=8.55&&y<9.35)return Math.floor(x*SX)%4===3?B:Q;
+  }
+  // cab: windshield, side glass, pillars, rear glass, interior
+  if(inCab){
+    if(y>10.45){const rt=roof(x);
+      if(y>rt-TH)return B;
+      if(x<xs(y)+TH)return(az<h-TH-0.15&&y<rt-TH-0.15)?W:B;
+      if(x>=24.9-TH)return(y>=11&&y<14.2&&az<2.6)?W:B;
+      if(side)return(y>=10.75&&y<rt-0.4&&((x>=xs(y)+0.65&&x<19.2)||(x>=19.9&&x<24.3)))?W:B;
+    }
+    if(x>=13.6&&x<24.9-TH&&y>5.75&&!side)return interior(x,y,c,az);
+    return B;
+  }
+  // gap between cab and bed
+  if(x>=24.9&&x<25.15&&y>5.5)return 0;
+  // bed
+  if(x>=25.15+TB&&x<37-TB&&az<h-TB){
+    if(y>10.6-TH)return P;
+    if(y>6.25)return(Math.hypot(x-30.5,y-WY)<4.75&&az>3.5)?B:0;
+    if(y>5.75)return P;
+  }
+  return B;
+}
+
+
+const id=(i,j,k)=>(j*Z+k)*X+i;
+const isGlass=v=>v&&CAT[v].glass;
+const solidAt=(i,j,k)=>{if(i<0||j<0||k<0||i>=X||j>=Y||k>=Z)return false;const v=vox[id(i,j,k)];return v&&!isGlass(v);};
+function computeExposed(){
+  exposed=new Uint8Array(N);
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const n=id(i,j,k);if(!vox[n])continue;
+    exposed[n]=!(solidAt(i+1,j,k)&&solidAt(i-1,j,k)&&solidAt(i,j+1,k)&&solidAt(i,j-1,k)&&solidAt(i,j,k+1)&&solidAt(i,j,k-1))?1:0;}
+}
+function voxelTacoma(lx,wz,hy){
+  X=lx;Z=wz;Y=hy;SX=X/37;SZ=Z/13;SY=Y/15;const sm=Math.min(SX,SY,SZ);TH=Math.max(.3,1.05/sm);TB=Math.max(.5,1.05/sm);
+  N=X*Y*Z;vox=new Uint8Array(N);
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++)vox[id(i,j,k)]=classify((i+.5)/SX,(j+.5)/SY,(k+.5)/SZ);
+  computeExposed();
+}
+
+// ---------- pictures ----------
+function toLab(hex){const n=parseInt(hex.slice(1),16);return rgbLab(n>>16,n>>8&255,n&255);}
+function rgbLab(r,g,b){const f=c=>{c/=255;return c>0.04045?Math.pow((c+0.055)/1.055,2.4):c/12.92;};
+  const R1=f(r),G1=f(g),B1=f(b);
+  let x=(R1*.4124+G1*.3576+B1*.1805)/.95047,y=(R1*.2126+G1*.7152+B1*.0722),z=(R1*.0193+G1*.1192+B1*.9505)/1.08883;
+  const h=t=>t>0.008856?Math.cbrt(t):7.787*t+16/116;x=h(x);y=h(y);z=h(z);return[116*y-16,500*(x-y),200*(y-z)];}
+const PALLAB={};for(const k in PALS)PALLAB[k]=PALS[k].map(v=>[v,...toLab(CAT[v].m)]);
+function nearest(pk,r,g,b){const[L,A,Bb]=rgbLab(r,g,b);let best=0,bd=1e9;for(const[v,l,a,bb]of PALLAB[pk]){const d=(L-l)**2+(A-a)**2+(Bb-bb)**2;if(d<bd){bd=d;best=v;}}return best;}
+const imgCache={};
+function getImg(src){return imgCache[src]||(imgCache[src]=new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('That picture could not be read.'));im.src=src;}));}
+async function voxelPicture(b){
+  const im=await getImg(b.img);const w=b.w,h=Math.max(1,Math.round(w*im.naturalHeight/im.naturalWidth)),t=b.t;
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const c=cv.getContext('2d');
+  c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.drawImage(im,0,0,w,h);
+  const d=c.getImageData(0,0,w,h).data,cache=new Map(),bg=[d[0],d[1],d[2]];
+  if(b.orient==='flat'){X=w;Y=t;Z=h;}else{X=w;Y=h;Z=t;}
+  N=X*Y*Z;vox=new Uint8Array(N);
+  for(let r=0;r<h;r++)for(let i=0;i<w;i++){const o=(r*w+i)*4;if(d[o+3]<128)continue;
+    if(b.bg&&Math.abs(d[o]-bg[0])+Math.abs(d[o+1]-bg[1])+Math.abs(d[o+2]-bg[2])<48)continue;
+    const key=(d[o]>>2)<<12|(d[o+1]>>2)<<6|(d[o+2]>>2);let v=cache.get(key);
+    if(v===undefined){v=nearest(b.pal,d[o],d[o+1],d[o+2]);cache.set(key,v);}
+    for(let q=0;q<t;q++){if(b.orient==='flat')vox[id(i,q,r)]=v;else vox[id(i,h-1-r,q)]=v;}}
+  computeExposed();
+}
+
+// ---------- state ----------
+const $=q=>document.getElementById(q);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}};
+const LIBKEY='mc-builds-v1';
+let lib=store.get(LIBKEY,[]);
+let cur=null, codeOf={}, L=1, done=[], rowsDone=new Set();
+const buildKey=()=>cur.id+':'+X+'x'+Z+'x'+Y;
+$('hollow').checked=store.get('tacoma4-hollow',true);
+const keep=n=>!$('hollow').checked||exposed[n];
+const nameOf=v=>CAT[v].name;
+function counts(j){const c={};const j0=j===undefined?0:j,j1=j===undefined?Y-1:j;
+  for(let jj=j0;jj<=j1;jj++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const n=id(i,jj,k),v=vox[n];if(v&&keep(n))c[v]=(c[v]||0)+1;}
+  return c;}
+const stacks=n=>{const s=Math.floor(n/64),r=n%64;return s?(s+' + '+r):String(r);};
+function lum(hex){const n=parseInt(hex.slice(1),16);return(0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255;}
+const ink=c=>lum(c)<.5?'#fff':'#111';
+function assignCodes(){
+  if(cur.kind==='tacoma'){codeOf=TACODE;return;}
+  const c=counts();codeOf={};const seq='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  Object.keys(c).sort((a,b)=>c[b]-c[a]).forEach((v,n)=>codeOf[v]=n<26?seq[n]:seq[Math.floor(n/26)-1]+seq[n%26]);
+}
+
+const NOTES=[[3.4,'Tires and rims: tread grooves, 8 black spokes, silver lip ring and chrome center cap.'],
+  [4.1,'Axles, differentials, driveshaft and the feet of the bull bar.'],
+  [5,'Frame rails, bull bar tubes, front and rear bumpers, tube running boards, fender flares.'],
+  [6.3,'Body floor, fog lights, lower intake, bed floor and seat cushions.'],
+  [8,'Doors, mesh grille, LED light bar in the bull bar, tail lights.'],
+  [9.7,'Headlights with yellow trim and projectors, orange side markers, door handles, TACOMA badge, TRD Sport decal.'],
+  [10.7,'Hood, hood scoop, belt line, hard bed cover, dashboard and steering wheel.'],
+  [14.6,'Windshield and windows. Pillars between the front and rear doors. Headrests show through the glass.'],
+  [99,'Curved roof.']];
+function noteFor(l){
+  if(cur.kind==='tacoma'){const y=(l-.5)/SY;return NOTES.find(n=>y<n[0])[1];}
+  if(cur.orient==='flat')return `Lying flat. Layer ${l} of ${Y} thick.`;
+  return `Picture row ${Y-l+1} from the top, built from the ground up.`+(Z>1?` Every row is ${Z} blocks deep.`:'');
+}
+
+// ---------- starting block ----------
+const DIR={E:[1,0],W:[-1,0],S:[0,1],N:[0,-1]};
+let anchor=null;
+function perp(c){return(c==='E'||c==='W')?['S','N']:['E','W'];}
+const DLABEL={E:'East (+X)',W:'West (−X)',S:'South (+Z)',N:'North (−Z)'};
+function fillRowSel(sel){const o=perp($('acol').value);$('arow').innerHTML=o.map(d=>`<option value="${d}">${DLABEL[d]}</option>`).join('');if(sel&&o.includes(sel))$('arow').value=sel;}
+function loadAnchor(){
+  const a=store.get('anchor-'+cur.id,null);anchor=a;
+  $('ax').value=a?a.x:'';$('ay').value=a?a.y:'';$('az').value=a?a.z:'';
+  $('acol').value=a?a.c:'E';fillRowSel(a?a.r:null);
+  $('anchornote').textContent=cur.kind==='tacoma'
+    ?'Everything is measured from col 1, row 1, layer 1: the front, passenger-side corner of the truck, on the ground (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
+    :'Everything is measured from col 1, row 1, layer 1: the bottom-left corner of the picture (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.';
+  showAnchorInfo();
+}
+function readAnchor(){
+  const x=parseInt($('ax').value,10),y=parseInt($('ay').value,10),z=parseInt($('az').value,10);
+  anchor=(isNaN(x)||isNaN(y)||isNaN(z))?null:{x,y,z,c:$('acol').value,r:$('arow').value};
+  store.set('anchor-'+cur.id,anchor);showAnchorInfo();renderRuns();
+}
+function world(i,j,k){if(!anchor)return null;const c=DIR[anchor.c],r=DIR[anchor.r];
+  return{x:anchor.x+i*c[0]+k*r[0],y:anchor.y+j,z:anchor.z+i*c[1]+k*r[1]};}
+function showAnchorInfo(){
+  if(!anchor){$('anchorinfo').textContent='Fill in X, Y and Z to see in-game coordinates on every row.';return;}
+  const e=world(X-1,0,Z-1);
+  $('anchorinfo').textContent=`Starting block at ${anchor.x} ${anchor.y} ${anchor.z}. The far corner lands at ${e.x} ${anchor.y} ${e.z}; the top layer is at Y ${anchor.y+Y-1}. TV build mode now shows a /fill command for every run.`;
+}
+const IDFIX={'Lapis Lazuli Block':'lapis_block','Snow Block':'snow','Terracotta':'hardened_clay','Nether Bricks':'nether_brick','Bricks':'brick_block'};
+const bid=v=>IDFIX[CAT[v].name]||CAT[v].name.toLowerCase().replace(/ /g,'_');
+function fillCmd(j,k,r){const a=world(r.s,j,k);if(!a)return'';const b=world(r.e,j,k);
+  return r.s===r.e?`/setblock ${a.x} ${a.y} ${a.z} ${bid(r.v)}`:`/fill ${a.x} ${a.y} ${a.z} ${b.x} ${b.y} ${b.z} ${bid(r.v)}`;}
+function runXYZ(j,k,s,e){const a=world(s,j,k);if(!a)return'';const b=world(e,j,k);
+  return s===e?`${a.x} ${a.y} ${a.z}`:`${a.x} ${a.y} ${a.z} → ${b.x} ${b.y} ${b.z}`;}
+['ax','ay','az'].forEach(q=>$(q).addEventListener('input',readAnchor));
+$('acol').onchange=()=>{fillRowSel($('arow').value);readAnchor();};
+$('arow').onchange=readAnchor;
+$('aclear').onclick=()=>{$('ax').value=$('ay').value=$('az').value='';readAnchor();};
+
+// ---------- 3D view ----------
+let renderer,scene,camera,controls,meshes={},ghostMesh,frame,mat4,col,dyn=[];
+function init3d(){
+  if(!window.THREE){$('loading').textContent='The 3D viewer could not load (three.js is blocked). The layer plan below still works.';return;}
+  try{renderer=new THREE.WebGLRenderer({canvas:$('cv3'),antialias:true,alpha:true});}
+  catch(e){$('loading').textContent='This browser has WebGL turned off, so the 3D view is unavailable. The layer plan below still works.';return;}
+  $('loading').hidden=true;
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(30,1,1,6000);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x555a60,1.0));
+  const sun=new THREE.DirectionalLight(0xffffff,0.75);sun.position.set(-1,2.2,1.3);scene.add(sun);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(700,700),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.08}));
+  ground.rotation.x=-Math.PI/2;ground.position.y=-0.05;scene.add(ground);
+  controls=new THREE.OrbitControls(camera,$('cv3'));controls.enableDamping=false;controls.addEventListener('change',render);
+  new ResizeObserver(resize).observe($('stage'));
+  mat4=new THREE.Matrix4();col=new THREE.Color();
+}
+function buildMeshes(){
+  if(!renderer)return;
+  for(const o of dyn){scene.remove(o);o.geometry.dispose();o.material.dispose();}
+  dyn=[];meshes={};
+  const box=new THREE.BoxGeometry(1,1,1);const totals={};let ex=0;
+  for(let n=0;n<N;n++)if(vox[n]){totals[vox[n]]=(totals[vox[n]]||0)+1;if(exposed[n])ex++;}
+  for(const v in totals){const bl=CAT[v];
+    const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:!!bl.glass,opacity:bl.glass||1,depthWrite:!bl.glass});
+    const mesh=new THREE.InstancedMesh(box,m,totals[v]);mesh.count=0;mesh.frustumCulled=false;
+    mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(totals[v]*3),3);
+    if(bl.glass)mesh.renderOrder=2;meshes[v]=mesh;scene.add(mesh);dyn.push(mesh);}
+  ghostMesh=new THREE.InstancedMesh(box,new THREE.MeshBasicMaterial({color:0x2a2e34,transparent:true,opacity:.07,depthWrite:false}),Math.max(1,ex));
+  ghostMesh.count=0;ghostMesh.frustumCulled=false;ghostMesh.renderOrder=3;scene.add(ghostMesh);dyn.push(ghostMesh);
+  const fg=new THREE.BufferGeometry().setFromPoints([[-1,-1],[X+1,-1],[X+1,Z+1],[-1,Z+1]].map(([a,b])=>new THREE.Vector3(a-X/2,0,b-Z/2)));
+  frame=new THREE.LineLoop(fg,new THREE.LineBasicMaterial({color:0xf1b419}));scene.add(frame);dyn.push(frame);
+  const ph=Math.max(3,Math.round(Math.max(X,Y,Z)*0.12));
+  const post=new THREE.Mesh(new THREE.BoxGeometry(1.02,ph,1.02),new THREE.MeshBasicMaterial({color:0xd8322c}));
+  post.position.set(0.5-X/2,ph/2,0.5-Z/2);scene.add(post);dyn.push(post);
+  controls.target.set(0,Y*0.45,0);setView('front');resize();
+}
+function setView(v){if(!camera)return;const d=Math.max(X,Y*1.4,Z)*1.6,dir=new THREE.Vector3();
+  const pic=cur&&cur.kind==='picture';
+  if(v==='front')pic?dir.set(0.15,0.2,1):dir.set(-0.72,0.42,0.6);
+  if(v==='rear')pic?dir.set(-0.15,0.2,-1):dir.set(0.75,0.45,-0.55);
+  if(v==='side')pic?dir.set(1,0.2,0.1):dir.set(0,0.12,1);
+  if(v==='top')dir.set(0.001,1,0.12);
+  if(pic&&cur.orient==='flat'&&v==='front')dir.set(0.001,1,0.5);
+  dir.normalize();camera.position.copy(controls.target).addScaledVector(dir,d);camera.lookAt(controls.target);controls.update();render();}
+function resize(){if(!renderer)return;const r=$('stage').getBoundingClientRect();if(!r.width)return;renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();render();}
+function render(){if(renderer)renderer.render(scene,camera);}
+function hash(n){n=(n^61)^(n>>>16);n=n+(n<<3);n=n^(n>>>4);n=Math.imul(n,0x27d4eb2d);return((n^(n>>>15))>>>0)/4294967296;}
+function update3d(){
+  if(!renderer||!ghostMesh)return;
+  const fill={};for(const v in meshes)fill[v]=0;let g=0;const ghost=$('ghost').checked;
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const n=id(i,j,k),v=vox[n];if(!v)continue;
+    if(j<L){if(!keep(n))continue;if(!exposed[n]&&j!==L-1)continue;
+      const m=meshes[v];mat4.makeTranslation(i-X/2+.5,j+.5,k-Z/2+.5);m.setMatrixAt(fill[v],mat4);
+      col.set(CAT[v].c);const s=0.9+hash(n)*0.2;col.r*=s;col.g*=s;col.b*=s;m.setColorAt(fill[v],col);fill[v]++;}
+    else if(ghost&&exposed[n]){mat4.makeTranslation(i-X/2+.5,j+.5,k-Z/2+.5);ghostMesh.setMatrixAt(g++,mat4);}}
+  for(const v in meshes){const m=meshes[v];m.count=fill[v];m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;}
+  ghostMesh.count=g;ghostMesh.instanceMatrix.needsUpdate=true;
+  frame.position.y=L+0.02;render();
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+
+// ---------- layer grid ----------
+const gc=$('grid'),g2=gc.getContext('2d');const LAB=28;let CS=0,fitCS=6;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function computeFit(){const bw=$('gridbox').clientWidth;fitCS=Math.max(3,Math.min(24,Math.floor((bw-LAB-4)/X)));if(!CS)CS=fitCS;}
+function drawGrid(){
+  if(!vox)return;computeFit();
+  const dpr=window.devicePixelRatio||1,Wd=LAB+X*CS+2,Hd=LAB+Z*CS+22;
+  gc.width=Wd*dpr;gc.height=Hd*dpr;gc.style.width=Wd+'px';gc.style.height=Hd+'px';g2.setTransform(dpr,0,0,dpr,0,0);
+  const fg=css('--fg'),muted=css('--muted'),line=css('--line'),cell=css('--cell'),panel=css('--panel');
+  g2.fillStyle=cell;g2.fillRect(0,0,Wd,Hd);g2.fillStyle=panel;g2.fillRect(LAB,LAB,X*CS,Z*CS);
+  const j=L-1,below=$('below').checked;
+  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const px=LAB+i*CS,py=LAB+k*CS,n=id(i,j,k),v=vox[n];
+    if(v&&keep(n)){const c=CAT[v].c;g2.fillStyle=c;g2.fillRect(px,py,CS,CS);
+      if(CS>=15){g2.fillStyle=lum(c)<.5?'rgba(255,255,255,.8)':'rgba(0,0,0,.72)';g2.font='600 '+Math.min(11,CS-6)+'px "IBM Plex Mono", monospace';g2.textAlign='center';g2.textBaseline='middle';g2.fillText(codeOf[v],px+CS/2,py+CS/2+.5);}}
+    else if(below&&j>0){const nb=id(i,j-1,k),vb=vox[nb];if(vb&&keep(nb)){g2.fillStyle=CAT[vb].c;g2.globalAlpha=.2;g2.fillRect(px+CS*.2,py+CS*.2,CS*.6,CS*.6);g2.globalAlpha=1;}}}
+  for(let i=0;i<=X;i++){const heavy=i%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(LAB+i*CS+.5,LAB);g2.lineTo(LAB+i*CS+.5,LAB+Z*CS);g2.stroke();}
+  for(let k=0;k<=Z;k++){const heavy=k%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(LAB,LAB+k*CS+.5);g2.lineTo(LAB+X*CS,LAB+k*CS+.5);g2.stroke();}
+  g2.globalAlpha=1;
+  // starting block
+  g2.strokeStyle='#d8322c';g2.lineWidth=j===0?3:1.5;g2.strokeRect(LAB+1.5,LAB+1.5,CS-3,CS-3);g2.lineWidth=1;
+  g2.fillStyle=muted;g2.font='600 10px "IBM Plex Mono", monospace';g2.textBaseline='middle';
+  g2.textAlign='left';for(let i=0;i<X;i+=10)g2.fillText(i+1,LAB+i*CS+2,LAB/2);
+  g2.textAlign='right';for(let k=0;k<Z;k+=10)g2.fillText(k+1,LAB-4,LAB+k*CS+CS/2);
+  g2.fillStyle=fg;g2.font='600 11px "IBM Plex Sans", sans-serif';
+  const pic=cur.kind==='picture';
+  g2.textAlign='left';g2.fillText(pic?'◀ col 1':'◀ FRONT',LAB,LAB+Z*CS+12);
+  g2.textAlign='right';g2.fillText(pic?'col '+X+' ▶':'REAR ▶',LAB+X*CS,LAB+Z*CS+12);
+  if(!pic&&X*CS>420){g2.textAlign='center';g2.fillStyle=muted;g2.fillText('row 1 = passenger side · row '+Z+' = driver side',LAB+X*CS/2,LAB+Z*CS+12);}
+}
+function showCell(e){const r=gc.getBoundingClientRect();const i=Math.floor((e.clientX-r.left-LAB)/CS),k=Math.floor((e.clientY-r.top-LAB)/CS);
+  if(i<0||i>=X||k<0||k>=Z)return;const n=id(i,L-1,k),v=vox[n];const w=world(i,L-1,k);
+  $('cellinfo').textContent=`Layer ${L} · col ${i+1} · row ${k+1}`+(w?` · game ${w.x} ${w.y} ${w.z}`:'')+' · '+(v?(keep(n)?nameOf(v):nameOf(v)+' (hidden, skipped)'):'air');}
+gc.addEventListener('pointermove',showCell);gc.addEventListener('pointerdown',showCell);
+$('zin').onclick=()=>{CS=Math.min(28,Math.max(CS+1,Math.round(CS*1.5)));drawGrid();};
+$('zout').onclick=()=>{CS=Math.max(3,Math.round(CS/1.5));drawGrid();};
+$('zfit').onclick=()=>{CS=fitCS;drawGrid();};
+
+// ---------- rows ----------
+function rowRuns(j,k){const runs=[];let c=null;
+  for(let i=0;i<X;i++){const n=id(i,j,k),v=vox[n];const b=(v&&keep(n))?v:0;
+    if(b&&c&&c.v===b&&c.e===i-1)c.e=i;else if(b){c={v:b,s:i,e:i};runs.push(c);}else c=null;}
+  return runs;}
+function renderRuns(){if(!vox)return;const ol=$('runs');ol.innerHTML='';const j=L-1;let any=false;
+  for(let k=0;k<Z;k++){const runs=rowRuns(j,k);if(!runs.length)continue;any=true;
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="rn">Row ${k+1}</span><span class="rs">`+runs.map(r=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
+      return `<span class="r1" title="${bl.name}${xyz?' · '+fillCmd(j,k,r):''}"><i style="background:${bl.c}"></i>${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)} ${codeOf[r.v]}×${len}</span>`;}).join('')+'</span>';
+    ol.appendChild(li);}
+  if(!any)ol.innerHTML='<li>Nothing to place on this layer.</li>';}
+
+// ---------- panels ----------
+function renderLegend(){const c=counts(L-1),ul=$('legend');ul.innerHTML='';
+  for(const v of Object.keys(c).sort((a,b)=>c[b]-c[a])){const bl=CAT[v],li=document.createElement('li');
+    li.innerHTML=`<span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span><span>${bl.name}</span><span class="n">${c[v]}</span>`;ul.appendChild(li);}}
+function renderMats(){const c=counts(),tb=$('mats');tb.innerHTML='';
+  for(const v of Object.keys(c).sort((a,b)=>c[b]-c[a])){const bl=CAT[v],tr=document.createElement('tr');
+    tr.innerHTML=`<td><span class="row" style="flex-wrap:nowrap"><span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span>${bl.name}</span></td><td>${cur.kind==='tacoma'?(bl.use||''):'Picture'}</td><td class="num">${c[v].toLocaleString()}</td><td class="num">${stacks(c[v])}</td>`;tb.appendChild(tr);}
+  const total=Object.values(c).reduce((a,b)=>a+b,0);
+  $('chips').innerHTML=`<span class="chip"><b>${X}</b> long</span><span class="chip"><b>${Z}</b> ${cur.kind==='picture'&&cur.orient!=='flat'?'deep':'wide'}</span><span class="chip"><b>${Y}</b> layers</span><span class="chip"><b>${total.toLocaleString()}</b> blocks</span>`;}
+function renderLayers(){const box=$('layers');box.innerHTML='';box.hidden=Y>120;
+  if(Y<=120)for(let i=1;i<=Y;i++){const b=document.createElement('button');b.textContent=i;if(i===L)b.className='cur';if(done.includes(i))b.classList.add('ok');
+    b.setAttribute('aria-label','Layer '+i+(done.includes(i)?', finished':''));b.onclick=()=>setL(i);box.appendChild(b);}
+  $('isdone').checked=done.includes(L);$('progtxt').textContent=done.length+' / '+Y;$('progbar').style.width=(done.length/Y*100)+'%';}
+let raf=0;
+function setL(n){L=Math.max(1,Math.min(Y,n));$('slider').value=L;$('lnum').innerHTML=`${L} <small>/ ${Y}</small>`;
+  $('note').innerHTML=`<span class="y">Layer ${L} of ${Y}</span>${noteFor(L)}`;$('gridtitle').textContent='Layer '+L;
+  renderLegend();renderRuns();renderLayers();cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{update3d();drawGrid();});}
+$('prev').onclick=()=>setL(L-1);$('next').onclick=()=>setL(L+1);
+$('slider').oninput=e=>setL(+e.target.value);
+$('ghost').onchange=update3d;$('below').onchange=drawGrid;
+$('hollow').onchange=()=>{store.set('tacoma4-hollow',$('hollow').checked);assignCodes();renderMats();setL(L);};
+$('isdone').onchange=e=>{done=done.filter(i=>i!==L);if(e.target.checked)done.push(L);store.set('done-'+buildKey(),done);renderLayers();};
+document.addEventListener('keydown',e=>{
+  if(!$('tv').hidden){if(e.key==='ArrowRight'||e.key==='Enter'){e.preventDefault();tvStep(1,true);}else if(e.key==='ArrowLeft'){e.preventDefault();tvStep(-1,false);}else if(e.key==='Escape')tvClose();return;}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;if(e.key==='ArrowRight')setL(L+1);if(e.key==='ArrowLeft')setL(L-1);});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawGrid();if(!$('tv').hidden)tvDraw();});
+new MutationObserver(drawGrid).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+new ResizeObserver(()=>{const f=fitCS;computeFit();if(CS===f)CS=fitCS;drawGrid();}).observe($('gridbox'));
+
+// ---------- TV build mode ----------
+let tvRows=[],tvI=0;
+function tvList(){tvRows=[];for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)if(rowRuns(j,k).length)tvRows.push([j,k]);}
+function tvOpen(){
+  tvList();if(!tvRows.length)return;
+  const start=tvRows.findIndex(([j,k])=>!rowsDone.has(j+':'+k));
+  tvI=Math.max(0,start);$('tv').hidden=false;document.body.style.overflow='hidden';
+  try{const p=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(p&&p.catch)p.catch(()=>{});}catch(e){}
+  tvDraw();$('tvnext').focus();
+}
+function tvClose(){$('tv').hidden=true;document.body.style.overflow='';
+  try{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});}catch(e){}
+  const [j]=tvRows[tvI]||[L-1];setL(j+1);}
+function tvStep(d,markDone){
+  const [j,k]=tvRows[tvI];
+  if(markDone){rowsDone.add(j+':'+k);store.set('rows-'+buildKey(),[...rowsDone]);
+    const allDone=tvRows.filter(r=>r[0]===j).every(([jj,kk])=>rowsDone.has(jj+':'+kk));
+    if(allDone&&!done.includes(j+1)){done.push(j+1);store.set('done-'+buildKey(),done);}}
+  tvI=Math.max(0,Math.min(tvRows.length-1,tvI+d));tvDraw();}
+function tvDraw(){
+  const [j,k]=tvRows[tvI],runs=rowRuns(j,k);
+  const nDone=tvRows.filter(([a,b])=>rowsDone.has(a+':'+b)).length;
+  $('tvname').textContent=cur.name;
+  $('tvwhere').textContent=`Layer ${j+1} / ${Y} · Row ${k+1} / ${Z}`+(rowsDone.has(j+':'+k)?' ✓':'');
+  $('tvprog').textContent=`${nDone} of ${tvRows.length} rows done`;
+  // the row, cropped to where blocks are
+  const s0=Math.max(0,runs[0].s-1),e0=Math.min(X-1,runs[runs.length-1].e+1),span=e0-s0+1;
+  const avail=Math.min(window.innerWidth,1800)-60,cs=Math.max(10,Math.min(64,Math.floor(avail/span)));
+  const cv=$('tvrow'),c=cv.getContext('2d'),dpr=window.devicePixelRatio||1,Wd=span*cs,Hd=cs+24;
+  cv.width=Wd*dpr;cv.height=Hd*dpr;cv.style.width=Wd+'px';cv.style.height=Hd+'px';c.setTransform(dpr,0,0,dpr,0,0);
+  c.fillStyle=css('--panel');c.fillRect(0,0,Wd,Hd);
+  for(let i=s0;i<=e0;i++){const n=id(i,j,k),v=vox[n],px=(i-s0)*cs;
+    c.strokeStyle=css('--line');c.strokeRect(px+.5,20.5,cs-1,cs-1);
+    if(v&&keep(n)){c.fillStyle=CAT[v].c;c.fillRect(px+1,21,cs-2,cs-2);
+      if(cs>=18){c.fillStyle=lum(CAT[v].c)<.5?'rgba(255,255,255,.85)':'rgba(0,0,0,.75)';c.font='600 '+Math.min(18,cs*.45)+'px "IBM Plex Mono", monospace';c.textAlign='center';c.textBaseline='middle';c.fillText(codeOf[v],px+cs/2,21+cs/2);}}
+  }
+  c.fillStyle=css('--muted');c.font='600 12px "IBM Plex Mono", monospace';c.textAlign='left';c.textBaseline='top';
+  for(const r of runs)c.fillText(r.s+1,(r.s-s0)*cs+2,2);
+  $('tvruns').innerHTML=runs.map(r=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
+    return `<li><i style="background:${bl.c}"></i><span class="ct">${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)}</span><span><b>${len}</b> × ${bl.name}</span>${xyz?`<span class="xyz">${fillCmd(j,k,r)}</span><button class="copy tvbtn" data-t="${fillCmd(j,k,r)}">Copy</button>`:''}</li>`;}).join('');
+  // layer map
+  const mc=$('tvmap'),m=mc.getContext('2d'),ms=Math.max(2,Math.min(8,Math.floor(Math.min(520,window.innerWidth-40)/X))),MW=X*ms,MH=Z*ms;
+  mc.width=MW*dpr;mc.height=MH*dpr;mc.style.width=MW+'px';mc.style.height=MH+'px';m.setTransform(dpr,0,0,dpr,0,0);
+  m.fillStyle=css('--panel');m.fillRect(0,0,MW,MH);
+  for(let kk=0;kk<Z;kk++){const dn=rowsDone.has(j+':'+kk);for(let i=0;i<X;i++){const n=id(i,j,kk),v=vox[n];if(v&&keep(n)){m.globalAlpha=dn?.35:1;m.fillStyle=CAT[v].c;m.fillRect(i*ms,kk*ms,ms,ms);}}}
+  m.globalAlpha=1;m.strokeStyle='#f1b419';m.lineWidth=2;m.strokeRect(1,k*ms-1,MW-2,ms+2);
+  $('tvback').disabled=tvI===0;
+  $('tvnext').textContent=tvI===tvRows.length-1?'Done ✓':'Done, next row ▶';
+}
+document.addEventListener('click',e=>{const b=e.target.closest('.copy');if(!b)return;const t=b.dataset.t;
+  const ok=()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200);};
+  try{navigator.clipboard.writeText(t).then(ok,()=>{b.textContent='Type it in';});}catch(err){b.textContent='Type it in';}});
+$('tvopen').onclick=tvOpen;$('tvexit').onclick=tvClose;
+$('tvnext').onclick=()=>tvStep(1,true);$('tvback').onclick=()=>tvStep(-1,false);$('tvskip').onclick=()=>tvStep(1,false);
+
+// ---------- library ----------
+function saveLib(){if(!store.set(LIBKEY,lib)){$('libinfo').textContent='This browser would not save it (storage full or blocked). It stays until you close the page; delete a build to make room.';return false;}$('libinfo').textContent='Saved in this browser.';return true;}
+function renderShelf(){
+  const sh=$('shelf');sh.innerHTML='';
+  const card=(bid,name,thumb)=>{const b=document.createElement('button');b.className='bcard'+(cur&&cur.id===bid?' cur':'');
+    b.innerHTML=`<div class="th"${thumb?` style="background-image:url('${thumb}')"`:''}>${thumb?'':'TACOMA'}</div><span>${name}</span>`;
+    b.onclick=()=>openBuild(bid);sh.appendChild(b);};
+  card('tacoma','Lifted Tacoma',null);
+  for(const b of lib)card(b.id,b.name.replace(/[<>&"]/g,''),b.img);
+  const add=document.createElement('label');add.className='bcard add';
+  add.innerHTML='<div class="th">+</div><span>From a picture</span><input type="file" id="upload" accept="image/*">';
+  sh.appendChild(add);
+  add.querySelector('input').onchange=onUpload;
+}
+async function onUpload(e){
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  $('libinfo').textContent='Reading the picture…';
+  try{
+    const url=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(new Error('That file could not be read.'));fr.readAsDataURL(f);});
+    const im=await getImg(url);const sc=Math.min(1,256/Math.max(im.naturalWidth,im.naturalHeight));
+    const cw=Math.max(1,Math.round(im.naturalWidth*sc)),ch=Math.max(1,Math.round(im.naturalHeight*sc));
+    const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;const c=cv.getContext('2d');c.imageSmoothingQuality='high';c.drawImage(im,0,0,cw,ch);
+    const b={id:'p'+Date.now().toString(36),name:(f.name.replace(/\.[^.]+$/,'')||'Picture').slice(0,40),img:cv.toDataURL('image/png'),w:Math.min(64,cw),t:1,orient:'up',pal:'cw',bg:false};
+    lib.push(b);saveLib();openBuild(b.id);
+  }catch(err){$('libinfo').textContent=err.message+' Try a PNG or JPG.';}
+}
+function setDesc(){
+  if(cur.kind==='tacoma'){$('bname').textContent='Lifted Tacoma';$('bdesc').textContent='Your black double-cab Tacoma with the lift, chrome bull bar with LED light bar, hard bed cover, flared fenders and black off-road wheels, in full blocks at any size you pick.';}
+  else{$('bname').textContent=cur.name;$('bdesc').textContent=`Your picture as ${cur.orient==='flat'?'a floor':'a wall'} of full blocks, ${X} wide × ${cur.orient==='flat'?Z:Y} tall${(cur.orient==='flat'?Y:Z)>1?', '+(cur.orient==='flat'?Y:Z)+' thick':''}.`;}
+}
+function afterLoad(){
+  assignCodes();done=store.get('done-'+buildKey(),[]);rowsDone=new Set(store.get('rows-'+buildKey(),[]));
+  $('slider').max=Y;CS=0;buildMeshes();renderMats();setDesc();renderShelf();loadAnchor();setL(Y);
+}
+function openTacoma(lx,wz,hy){
+  $('sizeinfo').textContent='Building…';
+  setTimeout(()=>{voxelTacoma(lx,wz,hy);afterLoad();
+    $('sizeinfo').textContent=`${X} long × ${Z} wide × ${Y} tall, about ${(518/X).toFixed(1)} cm (${(204/X).toFixed(1)} in) per block. Full blocks only, no stairs or slabs.`;
+    store.set('tacoma-size2',[X,Z,Y]);},20);
+}
+async function openPicture(b){
+  $('picinfo').textContent='Building…';
+  try{await voxelPicture(b);}catch(err){$('picinfo').textContent=err.message;return;}
+  afterLoad();
+  $('picinfo').textContent=`${X} × ${b.orient==='flat'?Z:Y} blocks, ${Object.keys(codeOf).length} block types. Changes rebuild when you let go.`;
+}
+function openBuild(bid){
+  const b=bid==='tacoma'?{id:'tacoma',kind:'tacoma',name:'Lifted Tacoma'}:lib.find(x=>x.id===bid);
+  if(!b)return openBuild('tacoma');
+  cur=b.kind==='tacoma'?b:Object.assign({kind:'picture'},b);store.set('mc-current',bid);
+  $('sizecard').hidden=cur.kind!=='tacoma';$('piccard').hidden=cur.kind!=='picture';
+  resetDel();
+  if(cur.kind==='tacoma'){const s=store.get('tacoma-size2',[102,36,41]);$('sL').value=s[0];$('sW').value=s[1];$('sH').value=s[2];syncLabels();openTacoma(s[0],s[1],s[2]);}
+  else{$('pname').value=cur.name;$('pw').value=cur.w;$('pt').value=cur.t;$('por').value=cur.orient;$('ppal').value=cur.pal;$('pbg').checked=!!cur.bg;
+    getImg(cur.img).then(im=>{$('pw').max=Math.min(256,Math.max(64,im.naturalWidth));picLabels(im);}).catch(()=>{});
+    openPicture(cur);}
+}
+function picLabels(im){$('vPW').textContent=$('pw').value;$('vPT').textContent=$('pt').value;
+  if(im)$('vPH').textContent=Math.max(1,Math.round($('pw').value*im.naturalHeight/im.naturalWidth));}
+function updatePic(field,val){const b=lib.find(x=>x.id===cur.id);if(!b)return;b[field]=val;cur[field]=val;saveLib();}
+$('pw').addEventListener('input',()=>getImg(cur.img).then(picLabels));
+$('pt').addEventListener('input',()=>picLabels());
+$('pw').addEventListener('change',()=>{updatePic('w',+$('pw').value);openPicture(cur);});
+$('pt').addEventListener('change',()=>{updatePic('t',+$('pt').value);openPicture(cur);});
+$('por').onchange=()=>{updatePic('orient',$('por').value);openPicture(cur);};
+$('ppal').onchange=()=>{updatePic('pal',$('ppal').value);openPicture(cur);};
+$('pbg').onchange=()=>{updatePic('bg',$('pbg').checked);openPicture(cur);};
+$('pname').addEventListener('change',()=>{const v=$('pname').value.trim()||'Picture';updatePic('name',v);setDesc();renderShelf();});
+function resetDel(){$('delrow').innerHTML='<button id="del" class="danger">Delete this build</button>';$('del').onclick=askDel;}
+function askDel(){$('delrow').innerHTML='<span>Delete it for good?</span><button id="dely" class="danger">Yes, delete</button><button id="deln">Keep it</button>';
+  $('deln').onclick=resetDel;
+  $('dely').onclick=()=>{lib=lib.filter(x=>x.id!==cur.id);saveLib();openBuild('tacoma');};}
+
+// ---------- Tacoma size sliders ----------
+const BASE={L:37,W:13,H:15};
+function syncLabels(){$('vL').textContent=$('sL').value;$('vW').textContent=$('sW').value;$('vH').textContent=$('sH').value;}
+for(const [sid,dim] of [['sL','L'],['sW','W'],['sH','H']]){
+  const el=$(sid);
+  el.addEventListener('input',()=>{if($('lock').checked){const f=el.value/BASE[dim];
+      $('sL').value=Math.round(37*f);$('sW').value=Math.round(13*f);$('sH').value=Math.round(15*f);}
+    syncLabels();});
+  el.addEventListener('change',()=>openTacoma(+$('sL').value,+$('sW').value,+$('sH').value));
+}
+$('inch').onclick=()=>{$('lock').checked=true;$('sL').value=102;$('sW').value=36;$('sH').value=41;syncLabels();openTacoma(102,36,41);};
+
+init3d();
+openBuild(store.get('mc-current','tacoma'));
+document.fonts&&document.fonts.ready.then(drawGrid);
+</script>
+</body>
+</html>
