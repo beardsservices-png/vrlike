@@ -171,7 +171,9 @@ standalone loop.
   row-by-row runs, TV build mode (one row at a time), and a starting block: enter its
   in-game X/Y/Z and every run gets a ready `/fill` command. Also reads STL/OBJ exports from Draft Studio
   (`CAD-` repo; millimeters, z up) and voxelizes them at a chosen scale (1 block = 1 in …
-  1 m), filling the inside by flood-filling the outside air. Moved here from
+  1 m), filling the inside by flood-filling the outside air. Two more built-in examples: *Frozen Caldera*
+  (128 x 128 x 56 ring of icy peaks around a crater with a frozen lake, from Brian's idea)
+  and *Caldera Watchtower* (17 x 17 x 44, sized to stand on the caldera's island). Moved here from
   `virtual-board-games` on 20 Oct. Live copy: claude.ai artifact *Lifted Tacoma Build*.
 - **`tools/mc-commands/`**: Bedrock Command Guide (PS5): syntax and copyable examples
   for the building commands (`/fill`, `/clone`, `/structure`, `/tickingarea` …), world

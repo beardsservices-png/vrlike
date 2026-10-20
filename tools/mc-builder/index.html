@@ -320,6 +320,8 @@ const concIdx=DYES.map((d,i)=>addBlock(d+' Concrete',CONC[i],{m:CONC[i]}));
 const woolIdx=DYES.map((d,i)=>addBlock(d+' Wool',WOOLC[i],{m:WOOLC[i]}));
 const terrIdx=DYES.map((d,i)=>addBlock(d+' Terracotta',TERC[i],{m:TERC[i]}));
 const otherIdx=OTHER.map(([n,c])=>addBlock(n,c,{m:c}));
+const BI=addBlock('Blue Ice','#74a8fd'),GRV=addBlock('Gravel','#837f7e'),SBR=addBlock('Stone Bricks','#7a7a7a'),COB=addBlock('Cobblestone','#7f7f7f'),
+  GLS=addBlock('Glowstone','#e3c27a',{m:'#aa8f55'}),GLA=addBlock('Glass','#c9e4e8',{glass:.35});
 const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
 
 // ---------- the truck, as a shape sampled at 4 blocks per unit ----------
@@ -529,6 +531,64 @@ function voxelModel(b){
 const fmtIn=inch=>{const tot=Math.round(inch);const f=Math.floor(tot/12),i=tot%12;return f?(i?`${f} ft ${i} in`:`${f} ft`):`${i} in`;};
 const scaleLabel=s=>s>30?'1 meter':s===12?'1 foot':s===1?'1 inch':s+' inches';
 
+// ---------- built-in examples ----------
+function hash2(x,y,s){let n=Math.imul(x|0,374761393)^Math.imul(y|0,668265263)^Math.imul(s|0,1442695041);n=Math.imul(n^(n>>>13),1274126177);return((n^(n>>>16))>>>0)/4294967296;}
+function vnoise(x,y,s){const xi=Math.floor(x),yi=Math.floor(y),fx=x-xi,fy=y-yi,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+  const a=hash2(xi,yi,s),b=hash2(xi+1,yi,s),c=hash2(xi,yi+1,s),d=hash2(xi+1,yi+1,s);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
+const fbm=(x,y,s)=>vnoise(x,y,s)*.55+vnoise(x*2.1,y*2.1,s+7)*.3+vnoise(x*4.3,y*4.3,s+13)*.15;
+const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+// Frozen caldera: a ring of icy peaks around a sunken crater with a frozen lake and a small island
+function genCaldera(){
+  X=Z=128;Y=56;N=X*Y*Z;vox=new Uint8Array(N);const c=63.5,H=new Float32Array(X*Z);
+  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const dx=i-c,dz=k-c,rr=Math.hypot(dx,dz),an=Math.atan2(dz,dx);
+    const R=40+(vnoise(Math.cos(an)*2+5,Math.sin(an)*2+5,3)-.5)*12;
+    const peak=34+vnoise(Math.cos(an)*3+9,Math.sin(an)*3+9,5)*18;
+    let h;
+    if(rr<R)h=10+(peak-10)*smooth((rr-(R-15))/15);
+    else h=2+(peak-2)*(1-smooth((rr-R)/Math.max(8,62-R)));
+    h+=(fbm(i/14,k/14,11)-.5)*7*smooth((h-8)/20);
+    if(rr<16)h=Math.min(h,9);                  // frozen lake
+    if(rr<5)h=12-rr*.35;                       // island for the watchtower
+    H[k*X+i]=rr>R&&h<3?-1:Math.max(1,Math.min(Y-1,h));}       // no flat apron: the range ends where the slope does
+  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const h=Math.round(H[k*X+i]),rr=Math.hypot(i-c,k-c);if(h<0)continue;
+    let sl=0;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ii=Math.min(X-1,Math.max(0,i+a)),kk=Math.min(Z-1,Math.max(0,k+b));sl=Math.max(sl,Math.abs(H[kk*X+ii]-H[k*X+i]));}
+    for(let j=0;j<=h;j++){let v=j<4?CATIDX['Deepslate']:CATIDX['Stone'];
+      if(j===h){
+        if(rr<16&&rr>=5)v=BI;
+        else if(h>=34)v=sl>=2.5?CATIDX['Packed Ice']:CATIDX['Snow Block'];
+        else if(h>=22)v=sl>=2.5?CATIDX['Stone']:CATIDX['Snow Block'];
+        else if(h>=12)v=sl>=2?CATIDX['Packed Ice']:CATIDX['Snow Block'];
+        else v=rr<5?CATIDX['Snow Block']:GRV;}
+      else if(j>=h-2&&h>=34&&sl>=2.5)v=CATIDX['Packed Ice'];
+      vox[id(i,j,k)]=v;}}
+  computeExposed();
+}
+// Caldera watchtower: round stone tower with a glowing beacon, sized for the caldera's island
+function genTower(){
+  X=Z=17;Y=44;N=X*Y*Z;vox=new Uint8Array(N);const c=8;
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const dx=i-c,dz=k-c,rr=Math.hypot(dx,dz),an=Math.atan2(dz,dx);let v=0;
+    if(j<=2&&rr<=8.2)v=COB;
+    else if(j<=30&&rr<=6.2&&rr>=4.6){v=SBR;
+      const win=(j%8>=3&&j%8<=5)&&j>8&&(Math.abs(dx)<=0.6||Math.abs(dz)<=0.6);if(win)v=GLA;
+      if(j>=3&&j<=5&&dz>4&&Math.abs(dx)<=0.6)v=0;}       // door
+    else if(j<=30&&rr<4.6&&j>3&&j%8===3)v=CATIDX['Spruce Planks'];
+    else if(j===31&&rr<=7.6)v=SBR;
+    else if(j===32&&rr<=7.6&&rr>=6.6&&Math.floor((an+Math.PI)/(2*Math.PI)*16)%2===0)v=SBR;
+    else if(j>=32&&j<=36&&Math.abs(Math.abs(dx)-3.5)<0.6&&Math.abs(Math.abs(dz)-3.5)<0.6)v=CATIDX['Dark Oak Planks'];
+    else if(j>=32&&j<=35&&rr<=1.6)v=GLS;
+    else if(j>=37){const rad=6.2-(j-37)*1.0;if(rr<=rad&&rr>=rad-1.4)v=CATIDX['Spruce Planks'];if(j===Y-1&&rr<=.8)v=GLS;}
+    vox[id(i,j,k)]=v;}
+  computeExposed();
+}
+const BUILTIN={
+  caldera:{name:'Frozen Caldera',tag:'CALDERA',gen:genCaldera,use:'Landscape',
+    desc:'A ring of icy peaks around a sunken crater, with a frozen blue-ice lake and a small snowy island in the middle. 128 × 128 and up to 56 tall; the inside is hollow when "Skip hidden blocks" is on.',
+    note:l=>l<=4?'Deepslate bedrock layer under the whole range.':l<=10?'Crater floor: gravel, then the frozen lake at layer 10.':l<=13?'The island and the foot of the crater walls.':l<=22?'Lower slopes: packed ice on the steep inner faces.':l<=34?'Middle slopes: snow with bare stone where it is steep.':'The peaks: snow caps and packed-ice cliffs.'},
+  tower:{name:'Caldera Watchtower',tag:'TOWER',gen:genTower,use:'Tower',
+    desc:'A round stone watchtower with plank floors, glass windows, a battlement and a glowstone beacon under a spruce roof. 17 × 17 and 44 tall, sized to stand on the Frozen Caldera\'s island (its center, on layer 13).',
+    note:l=>l<=3?'Cobblestone base and the doorway.':l<=31?'Tower walls: a plank floor every 8 layers, windows on all four sides.':l<=33?'Battlement walk and crenellations.':l<=37?'Beacon room: dark oak posts around the glowstone.':'Spruce roof with a glowstone tip.'}
+};
+
 // ---------- state ----------
 const $=q=>document.getElementById(q);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
@@ -563,6 +623,7 @@ const NOTES=[[3.4,'Tires and rims: tread grooves, 8 black spokes, silver lip rin
   [99,'Curved roof.']];
 function noteFor(l){
   if(cur.kind==='tacoma'){const y=(l-.5)/SY;return NOTES.find(n=>y<n[0])[1];}
+  if(cur.kind==='gen')return BUILTIN[cur.id].note(l);
   if(cur.kind==='model')return `${fmtIn((l-1)*cur.scale)} to ${fmtIn(l*cur.scale)} above the ground.`;
   if(cur.orient==='flat')return `Lying flat. Layer ${l} of ${Y} thick.`;
   return `Picture row ${Y-l+1} from the top, built from the ground up.`+(Z>1?` Every row is ${Z} blocks deep.`:'');
@@ -578,7 +639,9 @@ function loadAnchor(){
   const a=store.get('anchor-'+cur.id,null);anchor=a;
   $('ax').value=a?a.x:'';$('ay').value=a?a.y:'';$('az').value=a?a.z:'';
   $('acol').value=a?a.c:'E';fillRowSel(a?a.r:null);
-  $('anchornote').textContent=cur.kind==='model'
+  $('anchornote').textContent=cur.kind==='gen'
+    ?'Everything is measured from col 1, row 1, layer 1: the corner marked by the red post in the 3D view. Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
+    :cur.kind==='model'
     ?'Everything is measured from col 1, row 1, layer 1: the lowest corner of the drawing\'s footprint (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
     :cur.kind==='tacoma'
     ?'Everything is measured from col 1, row 1, layer 1: the front, passenger-side corner of the truck, on the ground (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
@@ -726,7 +789,7 @@ function renderLegend(){const c=counts(L-1),ul=$('legend');ul.innerHTML='';
     li.innerHTML=`<span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span><span>${bl.name}</span><span class="n">${c[v]}</span>`;ul.appendChild(li);}}
 function renderMats(){const c=counts(),tb=$('mats');tb.innerHTML='';
   for(const v of Object.keys(c).sort((a,b)=>c[b]-c[a])){const bl=CAT[v],tr=document.createElement('tr');
-    tr.innerHTML=`<td><span class="row" style="flex-wrap:nowrap"><span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span>${bl.name}</span></td><td>${cur.kind==='tacoma'?(bl.use||''):cur.kind==='model'?'Model':'Picture'}</td><td class="num">${c[v].toLocaleString()}</td><td class="num">${stacks(c[v])}</td>`;tb.appendChild(tr);}
+    tr.innerHTML=`<td><span class="row" style="flex-wrap:nowrap"><span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span>${bl.name}</span></td><td>${cur.kind==='tacoma'?(bl.use||''):cur.kind==='gen'?BUILTIN[cur.id].use:cur.kind==='model'?'Model':'Picture'}</td><td class="num">${c[v].toLocaleString()}</td><td class="num">${stacks(c[v])}</td>`;tb.appendChild(tr);}
   const total=Object.values(c).reduce((a,b)=>a+b,0);
   $('chips').innerHTML=`<span class="chip"><b>${X}</b> long</span><span class="chip"><b>${Z}</b> ${cur.kind==='picture'&&cur.orient!=='flat'?'deep':'wide'}</span><span class="chip"><b>${Y}</b> layers</span><span class="chip"><b>${total.toLocaleString()}</b> blocks</span>`;}
 function renderLayers(){const box=$('layers');box.innerHTML='';box.hidden=Y>120;
@@ -812,6 +875,7 @@ function renderShelf(){
     b.innerHTML=`<div class="th"${thumb?` style="background-image:url('${thumb}')"`:''}>${thumb?'':(tag||'TACOMA')}</div><span>${name}</span>`;
     b.onclick=()=>openBuild(bid);sh.appendChild(b);};
   card('tacoma','Lifted Tacoma',null);
+  for(const k in BUILTIN)card(k,BUILTIN[k].name,null,BUILTIN[k].tag);
   for(const b of lib)card(b.id,b.name.replace(/[<>&"]/g,''),b.img||null,b.kind==='model'?'3D':'');
   const add=document.createElement('label');add.className='bcard add';
   add.innerHTML='<div class="th">+</div><span>From a picture or 3D file</span><input type="file" id="upload" accept="image/*,.stl,.obj">';
@@ -843,6 +907,7 @@ async function onModel(f){
   }catch(err){$('libinfo').textContent=err.message+' Export STL or OBJ from Draft Studio and try again.';}
 }
 function setDesc(){
+  if(cur.kind==='gen'){$('bname').textContent=cur.name;$('bdesc').textContent=BUILTIN[cur.id].desc;return;}
   if(cur.kind==='tacoma'){$('bname').textContent='Lifted Tacoma';$('bdesc').textContent='Your black double-cab Tacoma with the lift, chrome bull bar with LED light bar, hard bed cover, flared fenders and black off-road wheels, in full blocks at any size you pick.';}
   else if(cur.kind==='model'){$('bname').textContent=cur.name;$('bdesc').textContent=`Your 3D drawing at 1 block = ${scaleLabel(cur.scale)}: ${X} × ${Z} blocks and ${Y} tall, about ${fmtIn(X*cur.scale)} × ${fmtIn(Z*cur.scale)} × ${fmtIn(Y*cur.scale)} in real life.`;}
   else{$('bname').textContent=cur.name;$('bdesc').textContent=`Your picture as ${cur.orient==='flat'?'a floor':'a wall'} of full blocks, ${X} wide × ${cur.orient==='flat'?Z:Y} tall${(cur.orient==='flat'?Y:Z)>1?', '+(cur.orient==='flat'?Y:Z)+' thick':''}.`;}
@@ -869,6 +934,9 @@ async function openPicture(b){
   $('picinfo').textContent=`${X} × ${b.orient==='flat'?Z:Y} blocks, ${Object.keys(codeOf).length} block types. Changes rebuild when you let go.`;
 }
 function openBuild(bid){
+  if(BUILTIN[bid]){cur={id:bid,kind:'gen',name:BUILTIN[bid].name};store.set('mc-current',bid);
+    $('sizecard').hidden=$('piccard').hidden=$('modelcard').hidden=true;
+    setTimeout(()=>{BUILTIN[bid].gen();afterLoad();},20);return;}
   const b=bid==='tacoma'?{id:'tacoma',kind:'tacoma',name:'Lifted Tacoma'}:lib.find(x=>x.id===bid);
   if(!b)return openBuild('tacoma');
   cur=b.kind==='tacoma'?b:Object.assign({kind:'picture'},b);store.set('mc-current',bid);
