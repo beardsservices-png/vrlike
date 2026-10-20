@@ -321,7 +321,8 @@ const woolIdx=DYES.map((d,i)=>addBlock(d+' Wool',WOOLC[i],{m:WOOLC[i]}));
 const terrIdx=DYES.map((d,i)=>addBlock(d+' Terracotta',TERC[i],{m:TERC[i]}));
 const otherIdx=OTHER.map(([n,c])=>addBlock(n,c,{m:c}));
 const BI=addBlock('Blue Ice','#74a8fd'),GRV=addBlock('Gravel','#837f7e'),SBR=addBlock('Stone Bricks','#7a7a7a'),COB=addBlock('Cobblestone','#7f7f7f'),
-  GLS=addBlock('Glowstone','#e3c27a',{m:'#aa8f55'}),GLA=addBlock('Glass','#c9e4e8',{glass:.35});
+  GLS=addBlock('Glowstone','#e3c27a',{m:'#aa8f55'}),GLA=addBlock('Glass','#c9e4e8',{glass:.35}),
+  SHR=addBlock('Shroomlight','#f19e46'),PDS=addBlock('Polished Deepslate','#4a4a4f');
 const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
 
 // ---------- the truck, as a shape sampled at 4 blocks per unit ----------
@@ -580,7 +581,71 @@ function genTower(){
     vox[id(i,j,k)]=v;}
   computeExposed();
 }
+// Ice dragon perched like a statue: legs fused into a rock base, wings folded, all the detail in the face.
+// Designed in 40 x 42 x 66 "units" and sampled at 3 blocks per unit. x across, y up, z front to back; faces row 1.
+function genDragon(){
+  const S=3;X=40*S;Y=66*S;Z=42*S;N=X*Y*Z;vox=new Uint8Array(N);const C=20;
+  const PI_=CATIDX['Packed Ice'],SN=CATIDX['Snow Block'],QZ=CATIDX['Quartz Block'],BK=CATIDX['Black Concrete'],SL=CATIDX['Sea Lantern'],DS=CATIDX['Deepslate'],ST=CATIDX['Stone'],KS=CATIDX['Blackstone'];
+  const ell=(x,y,z,cx,cy,cz,rx,ry,rz)=>((x-cx)/rx)**2+((y-cy)/ry)**2+((z-cz)/rz)**2;
+  function capT(x,y,z,a,b){const ab0=b[0]-a[0],ab1=b[1]-a[1],ab2=b[2]-a[2],ap0=x-a[0],ap1=y-a[1],ap2=z-a[2];
+    const t=Math.max(0,Math.min(1,(ap0*ab0+ap1*ab1+ap2*ab2)/(ab0*ab0+ab1*ab1+ab2*ab2)));return[Math.hypot(ap0-ab0*t,ap1-ab1*t,ap2-ab2*t),t];}
+  const cap=(x,y,z,a,b,ra,rb)=>{const[d,t]=capT(x,y,z,a,b);return d<=ra+(rb-ra)*t;};
+  function chainT(x,y,z,pts,rs){for(let q=0;q<pts.length-1;q++){const[d,t]=capT(x,y,z,pts[q],pts[q+1]);if(d<=rs[q]+(rs[q+1]-rs[q])*t)return q+t;}return -1;}
+  const HORN=[[C+4.4,55,10],[C+7,59.6,15],[C+8.6,62.2,22],[C+8,61.6,28.5]],HR=[2.3,1.6,1.0,0.4];
+  const SP=[[C,44,22.5],[C,40.5,24.6],[C,37,27],[C,33.5,29.5],[C,30,31.6],[C,26,33.4],[C,22,34.8],[C,18,35.8],[C,14,36.4]];
+  const TEETH=[];for(let q=0;q<6;q++)TEETH.push(1.6+q*1.05);
+  const FRILL=[[C+3,56.5,14,C+5.5,58.5,19],[C+5.6,54,14.5,C+9.5,55.6,19],[C+6.8,51,14,C+11,51.5,18]];
+  for(let j=0;j<Y;j++){const y=(j+.5)/S,head=y>29;
+  for(let k=0;k<Z;k++){const z=(k+.5)/S;
+  for(let i=0;i<X;i++){const x=(i+.5)/S,ax=C+Math.abs(x-C);let v=0;
+    if(head){
+      const hx=C+(x-C)/1.5,hy=50+(y-46)/1.5,hz=7+(z-10.1)/1.5,hax=C+Math.abs(hx-C);   // the head is drawn 1.5x
+      const e=ell(hax,hy,hz,C+4.0,52.1,4.4,1.25,1.4,1.3);
+      if(e<=1){const dx=Math.abs(hax-(C+4.0));v=dx<0.32?BK:e>0.62?SHR:GLS;}                                   // eye: glowing ring, bright core, slit
+      else if(cap(hax,hy,hz,[C+6.2,54.8,7.2],[C+1.6,53.0,3.2],1.3,0.95))v=PDS;                                   // angry brow ridge
+      else if(cap(hax,hy,hz,[C+5.2,55.6,6.6],[C+6.4,57.6,8.4],0.55,0.12)||cap(hax,hy,hz,[C+3.4,54.6,4.8],[C+3.9,56.3,5.6],0.45,0.1))v=PDS; // brow spikes
+      else{const h=chainT(hax,hy,hz,HORN,HR);
+        if(h>=0)v=(Math.floor(h*7)%2)?PDS:KS;                                                                     // ridged horns
+        else if(chainT(hax,hy,hz,[[C+5.6,48.6,10],[C+9.4,47.6,14],[C+11.2,46,17.5]],[1.3,0.8,0.3])>=0)v=PDS;        // cheek spikes
+        else if(FRILL.some(f=>cap(hax,hy,hz,[f[0],f[1],f[2]],[f[3],f[4],f[5]],0.75,0.12)))v=KS;                      // frill behind the jaw
+        else if(cap(hx,hy,hz,[C,51.4,2.6],[C,53.4,1.0],0.9,0.3)||cap(hx,hy,hz,[C,52.6,4.6],[C,54,3.8],0.55,0.15))v=PDS; // nose horns
+        else if(cap(hax,hy,hz,[C+2.3,46.8,1.9],[C+2.3,43.6,1.9],0.75,0.18)||cap(hax,hy,hz,[C+1.7,44.4,2.4],[C+1.7,47.0,2.4],0.6,0.15)||
+                TEETH.some(t=>cap(hax,hy,hz,[C+2.9+t*0.12,46.7,t+1.6],[C+2.9+t*0.12,45.5,t+1.6],0.34,0.1)||cap(hax,hy,hz,[C+2.3+t*0.1,44.9,t+2],[C+2.3+t*0.1,46,t+2],0.3,0.1)))v=QZ; // fangs and rows of teeth
+        else if(ell(hx,hy,hz,C,46.2,6.4,2.4,1.3,3.3)<=1)v=SL;                                                     // glowing throat
+        else if(ell(hax,hy,hz,C+1.2,49.6,0.5,0.38,0.38,0.45)<=1)v=BK;                                              // nostrils
+        else if(cap(hx,hy,hz,[C,50.4,7.2],[C,48.9,0.6],3.7,2.5))v=hy<47.6?PDS:((Math.floor(hz*2.2)+Math.floor(hax*2.2))%3===0?BI:PI_); // upper jaw
+        else if(cap(hx,hy,hz,[C,45.2,8.6],[C,41.4,2.2],2.7,1.8))v=hy>44.6?PDS:PI_;                                 // lower jaw, dark gums
+        else if(cap(hax,hy,hz,[C+1.6,42.4,7.5],[C+2.2,39.6,9.2],0.6,0.15)||cap(hx,hy,hz,[C,42.6,6],[C,39.8,6.8],0.6,0.15))v=PDS; // chin spikes
+        else if(ell(hx,hy,hz,C,51.6,10.6,6,5,6.2)<=1)v=(Math.floor(hy*2)+Math.floor(hz*2))%4===0?BI:PI_;           // skull
+      }
+    }
+    if(!v){
+      let q=-1;
+      for(let s2=0;s2<SP.length&&q<0;s2++){const b=SP[s2],sz=1.3-s2*0.05;if(cap(x,y,z,[b[0],b[1]-1,b[2]-1.5],[b[0],b[1]+1.4,b[2]+2.6],sz,0.15))q=s2;}
+      const wa=chainT(ax,y,z,[[C+11,48,24],[C+13.2,30,22.5],[C+12.2,9,26]],[1.4,1.3,1.1]);
+      if(q>=0)v=PDS;                                                                                                 // back spines
+      else if(wa>=0||cap(ax,y,z,[C+11,48,24],[C+12.4,53,22.5],1.1,0.2)||cap(ax,y,z,[C+11.8,47,25],[C+13.6,50.5,25.5],0.8,0.15))v=PDS; // wing arms + claws
+      else if(chainT(x,y,z,[[C,34,21],[C,40,19.5],[C,46,16]],[7,6.3,6])>=0)
+        v=(z<16.5-(y-34)*.3&&Math.abs(x-C)<4.5)?((y*1.5%1)<0.3?PI_:SN):((Math.floor(y*1.6)+Math.floor(x*1.6))%2?PI_:(hash2(i,j,k)<0.5?BI:PI_)); // neck: belly plates, scales
+      else{const wx=C+10.2+(y-27)*0.11;
+        if(ell(ax,y,z,wx,27,30,3.3,22.5,9.2)<=1){
+          const bone=[[ [wx+2.4,46,25],[wx+2.6,26,31],[wx+2.2,8,35] ],[ [wx+2.4,44,27],[wx+2.8,30,36] ],[ [wx+2.2,42,29],[wx+2.4,36,38] ]].some(ch=>chainT(ax,y,z,ch,ch.map(()=>0.6))>=0);
+          v=bone?PDS:((z+y*0.55)%5<0.7?PI_:BI);}                                                                    // folded wings, finger bones
+        else if(ell(x,y,z,C,28,18,9,8.5,7.2)<=1||ell(x,y,z,C,20,24,11,17,10)<=1){
+          v=(z<16+(28-y)*.15&&Math.abs(x-C)<5.5)?((y*1.5%1)<0.3?PI_:SN):(((Math.floor(y*1.4)+Math.floor((x+Math.floor(y*1.4)*0.5)*1.4))%2)?PI_:(hash2(i,j,k)<0.45?BI:PI_));} // chest + torso
+        else if(chainT(x,y,z,[[C-14.5,4.5,14],[C-9,3.6,8],[C,3.4,5.8],[C+9,3.8,8.6],[C+14,5,14]],[3.1,2.8,2.5,2,1.4])>=0)v=(Math.floor(x*1.5)+Math.floor(y*1.5))%2?PI_:BI; // tail
+        else if(cap(x,y,z,[C+14,5,14],[C+16,8.4,16.5],1.2,0.15)||cap(x,y,z,[C+12.4,5.8,11.5],[C+14,8.6,12.4],0.8,0.1))v=PDS; // tail spikes
+        else if(ell(ax,y,z,C+8,9,27,7,8.5,9)<=1)v=PI_;                                                                // haunches
+        else if(y<10&&ell(x,y,z,C,1,25,19.5,10,16.5)<=1)v=hash2(i,j,k+5)<0.3?ST:DS;                                  // rock base, fuses into the mountain
+      }
+    }
+    vox[id(i,j,k)]=v;}}}
+  computeExposed();
+}
 const BUILTIN={
+  dragon:{name:'Wicked Ice Dragon',tag:'DRAGON',gen:genDragon,use:'Dragon',front:[0.45,0.18,-1],side:[1,0.15,-0.05],rear:[-0.4,0.3,1],
+    desc:'An ice dragon perched like a statue, legs fused into a rock base and wings folded tight, with the detail in the face: glowing slit eyes under angry brows, an open snarl with interlocking fangs and a glowing throat, swept-back horns, cheek spikes and a spined neck. 120 wide × 126 deep × 198 tall, with the head drawn big so the face reads from far away: ringed slit eyes, brow spikes, rows of teeth against dark gums, chin spikes, a frill and ridged horns. It faces row 1.',
+    note:L=>{const l=L/3;return l<=10?'Rock base and the tail curled around the front. Blend this into your mountain.':l<=22?'Haunches, lower wings and the start of the belly plates.':l<=33?'Chest, folded wings with their finger ridges, back spines.':l<=38?'Neck, wing arms, and the bottom of the lower jaw.':l<=45?'Lower jaw with upward fangs, the glowing throat.':l<=50?'Upper jaw, hanging fangs, nostrils, cheek spikes.':l<=57?'Eyes with slit pupils and the angry brow ridges.':'Horns sweeping back.';}},
   caldera:{name:'Frozen Caldera',tag:'CALDERA',gen:genCaldera,use:'Landscape',
     desc:'A ring of icy peaks around a sunken crater, with a frozen blue-ice lake and a small snowy island in the middle. 128 × 128 and up to 56 tall; the inside is hollow when "Skip hidden blocks" is on.',
     note:l=>l<=4?'Deepslate bedrock layer under the whole range.':l<=10?'Crater floor: gravel, then the frozen lake at layer 10.':l<=13?'The island and the foot of the crater walls.':l<=22?'Lower slopes: packed ice on the steep inner faces.':l<=34?'Middle slopes: snow with bare stone where it is steep.':'The peaks: snow caps and packed-ice cliffs.'},
@@ -710,9 +775,10 @@ function buildMeshes(){
 }
 function setView(v){if(!camera)return;const d=Math.max(X,Y*1.4,Z)*(cur&&cur.kind==='model'?2.1:1.6),dir=new THREE.Vector3();
   const pic=cur&&cur.kind==='picture';
-  if(v==='front')pic?dir.set(0.15,0.2,1):dir.set(-0.72,0.42,0.6);
-  if(v==='rear')pic?dir.set(-0.15,0.2,-1):dir.set(0.75,0.45,-0.55);
-  if(v==='side')pic?dir.set(1,0.2,0.1):dir.set(0,0.12,1);
+  const gf=cur&&cur.kind==='gen'&&BUILTIN[cur.id].front;
+  if(v==='front')gf?dir.set(...gf):pic?dir.set(0.15,0.2,1):dir.set(-0.72,0.42,0.6);
+  if(gf&&v==='side')dir.set(...(BUILTIN[cur.id].side||[1,.15,0]));else if(gf&&v==='rear')dir.set(...(BUILTIN[cur.id].rear||[0,.3,1]));else if(v==='rear')pic?dir.set(-0.15,0.2,-1):dir.set(0.75,0.45,-0.55);
+  else if(v==='side')pic?dir.set(1,0.2,0.1):dir.set(0,0.12,1);
   if(v==='top')dir.set(0.001,1,0.12);
   if(pic&&cur.orient==='flat'&&v==='front')dir.set(0.001,1,0.5);
   dir.normalize();camera.position.copy(controls.target).addScaledVector(dir,d);camera.lookAt(controls.target);controls.update();render();}
