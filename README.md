@@ -169,7 +169,9 @@ standalone loop.
   lifted Tacoma (Plotz-style size sliders; default 1 block = 2 in, 102 x 36 x 41). Also
   turns any picture into a block build (saved in that browser). 3D view, a grid per layer,
   row-by-row runs, TV build mode (one row at a time), and a starting block: enter its
-  in-game X/Y/Z and every run gets a ready `/fill` command. Moved here from
+  in-game X/Y/Z and every run gets a ready `/fill` command. Also reads STL/OBJ exports from Draft Studio
+  (`CAD-` repo; millimeters, z up) and voxelizes them at a chosen scale (1 block = 1 in …
+  1 m), filling the inside by flood-filling the outside air. Moved here from
   `virtual-board-games` on 20 Oct. Live copy: claude.ai artifact *Lifted Tacoma Build*.
 - **`tools/mc-commands/`**: Bedrock Command Guide (PS5): syntax and copyable examples
   for the building commands (`/fill`, `/clone`, `/structure`, `/tickingarea` …), world

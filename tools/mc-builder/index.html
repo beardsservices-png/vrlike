@@ -172,6 +172,20 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
     <div class="cellinfo" id="picinfo">Changes rebuild when you let go. Transparent parts of a PNG are left empty.</div>
   </section>
 
+  <section class="card" aria-label="3D file settings" id="modelcard" hidden>
+    <div class="gridhead"><h2>3D file settings</h2>
+      <div class="row" id="mdelrow"></div></div>
+    <div class="sizes">
+      <label class="field"><span>Name</span><input type="text" id="mname" maxlength="40"></label>
+      <label class="field"><span>Scale</span><select id="mscale">
+        <option value="1">1 block = 1 inch</option><option value="2">1 block = 2 inches</option><option value="3">1 block = 3 inches</option>
+        <option value="4">1 block = 4 inches</option><option value="6">1 block = 6 inches</option><option value="12">1 block = 1 foot</option>
+        <option value="39.37">1 block = 1 meter (true Minecraft size)</option></select></label>
+      <label class="field"><span>Block</span><select id="mblock"></select></label>
+    </div>
+    <div class="cellinfo" id="modelinfo">Draft Studio exports in real size, so the scale sets how big it comes out.</div>
+  </section>
+
   <div class="main">
     <section class="card" aria-label="3D model">
       <div class="stage" id="stage"><canvas id="cv3"></canvas><div class="loading" id="loading">Building…</div><span class="hint">drag to turn · scroll or pinch to zoom · red post = starting block</span></div>
@@ -248,6 +262,7 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
       <li><b>Starting block</b><span>Col 1, row 1, layer 1 is the corner everything is measured from. It's the red post in the 3D view and the red square on layer 1.</span></li>
       <li><b>TV build mode</b><span>Shows one row at a time, big. Tap "Done, next row" after each one; it remembers where you stopped.</span></li>
       <li><b>From a picture</b><span>Add any PNG or JPG and it becomes a block build, saved in this browser. Transparent parts of a PNG are left empty.</span></li>
+      <li><b>From Draft Studio</b><span>In Draft Studio, export STL or OBJ, then add that file here with "From a picture or 3D file". It comes in at its real size; pick how many inches each block is.</span></li>
       <li><b>Skip hidden blocks</b><span>Leaves out blocks nobody can see from outside, so solid shapes are built as shells.</span></li>
       <li><b>Commands</b><span>With the starting block filled in, TV build mode gives a ready /fill command for each run, so one command places a whole line. All the commands are in the <a href="https://claude.ai/artifact/Jg2ZK9nHkyVzkv5LFSoe5V" target="_blank" rel="noopener">Bedrock Command Guide</a>.</span></li>
       <li><b>Glass sits flush</b><span>Use full stained-glass blocks, not panes.</span></li>
@@ -463,6 +478,57 @@ async function voxelPicture(b){
   computeExposed();
 }
 
+// ---------- 3D files (STL / OBJ from Draft Studio, in millimeters, z up) ----------
+function parseMesh(fname,buf){
+  const lower=fname.toLowerCase();
+  if(lower.endsWith('.obj'))return parseOBJ(new TextDecoder().decode(buf));
+  const dv=new DataView(buf);
+  if(buf.byteLength>=84){const n=dv.getUint32(80,true);
+    if(84+n*50===buf.byteLength){const a=new Float32Array(n*9);
+      for(let i=0;i<n;i++){const o=84+i*50+12;for(let q=0;q<9;q++)a[i*9+q]=dv.getFloat32(o+q*4,true);}return a;}}
+  const txt=new TextDecoder().decode(buf),out=[];
+  for(const m of txt.matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g))out.push(+m[1],+m[2],+m[3]);
+  if(!out.length||out.length%9)throw new Error('That STL file has no triangles I can read.');
+  return new Float32Array(out);
+}
+function parseOBJ(txt){
+  const v=[],out=[];
+  for(const line of txt.split(/\r?\n/)){const p=line.trim().split(/\s+/);
+    if(p[0]==='v')v.push([+p[1],+p[2],+p[3]]);
+    else if(p[0]==='f'){const ix=p.slice(1).map(t=>{const n=parseInt(t,10);return n<0?v.length+n:n-1;});
+      for(let i=1;i<ix.length-1;i++)for(const q of[ix[0],ix[i],ix[i+1]]){const w=v[q];if(!w)throw new Error('That OBJ file is damaged.');out.push(w[0],w[1],w[2]);}}}
+  if(!out.length)throw new Error('That OBJ file has no faces I can read.');
+  return new Float32Array(out);
+}
+function b64(f32){const u=new Uint8Array(f32.buffer);let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s);}
+function unb64(str){const s=atob(str),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new Float32Array(u.buffer);}
+function voxelModel(b){
+  const t=b._tris||(b._tris=unb64(b.tris)),k=1/25.4/b.scale;
+  let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];
+  for(let i=0;i<t.length;i+=3)for(let a=0;a<3;a++){mn[a]=Math.min(mn[a],t[i+a]);mx[a]=Math.max(mx[a],t[i+a]);}
+  const span=a=>Math.max(1,Math.ceil((mx[a]-mn[a])*k-0.01)),nx=span(0),nz=span(1),ny=span(2);
+  if(nx>400||nz>400||ny>400||nx*ny*nz>6e6)throw new Error(`At this scale it would be ${nx} × ${nz} × ${ny} blocks, too big for the planner. Pick bigger blocks.`);
+  // work grid: 1 block of air around the sides and on top (not below) so the outside can be flood-filled
+  const WX=nx+2,WZ=nz+2,WY=ny+1,wid=(i,j,q)=>(j*WZ+q)*WX+i,g=new Uint8Array(WX*WY*WZ);
+  const cell=(x,y,z)=>{const i=Math.min(nx-1,Math.max(0,Math.floor((x-mn[0])*k))),q=Math.min(nz-1,Math.max(0,Math.floor((y-mn[1])*k))),j=Math.min(ny-1,Math.max(0,Math.floor((z-mn[2])*k)));g[wid(i+1,j,q+1)]=1;};
+  for(let o=0;o<t.length;o+=9){
+    const ax=t[o],ay=t[o+1],az=t[o+2],ux=t[o+3]-ax,uy=t[o+4]-ay,uz=t[o+5]-az,vx=t[o+6]-ax,vy=t[o+7]-ay,vz=t[o+8]-az;
+    const L=Math.max(Math.hypot(ux,uy,uz),Math.hypot(vx,vy,vz),Math.hypot(ux-vx,uy-vy,uz-vz))*k,n=Math.max(1,Math.ceil(L*2));
+    for(let a=0;a<=n;a++)for(let c=0;c<=n-a;c++){const s1=a/n,s2=c/n;cell(ax+ux*s1+vx*s2,ay+uy*s1+vy*s2,az+uz*s1+vz*s2);}
+  }
+  // flood the outside air; whatever it can't reach is inside the model
+  const outside=new Uint8Array(g.length),qu=new Int32Array(g.length);let h=0,tl=0;
+  const push=n=>{if(!g[n]&&!outside[n]){outside[n]=1;qu[tl++]=n;}};
+  for(let j=0;j<WY;j++)for(let q=0;q<WZ;q++)for(let i=0;i<WX;i++)if(i===0||q===0||i===WX-1||q===WZ-1||j===WY-1)push(wid(i,j,q));
+  while(h<tl){const n=qu[h++],i=n%WX,r=(n-i)/WX,q=r%WZ,j=(r-q)/WZ;
+    if(i>0)push(n-1);if(i<WX-1)push(n+1);if(q>0)push(n-WX);if(q<WZ-1)push(n+WX);if(j>0)push(n-WX*WZ);if(j<WY-1)push(n+WX*WZ);}
+  X=nx;Z=nz;Y=ny;N=X*Y*Z;vox=new Uint8Array(N);const v=CATIDX[b.block]||CATIDX['Oak Planks'];
+  for(let j=0;j<Y;j++)for(let q=0;q<Z;q++)for(let i=0;i<X;i++){const n=wid(i+1,j,q+1);if(g[n]||!outside[n])vox[id(i,j,q)]=v;}
+  computeExposed();
+}
+const fmtIn=inch=>{const tot=Math.round(inch);const f=Math.floor(tot/12),i=tot%12;return f?(i?`${f} ft ${i} in`:`${f} ft`):`${i} in`;};
+const scaleLabel=s=>s>30?'1 meter':s===12?'1 foot':s===1?'1 inch':s+' inches';
+
 // ---------- state ----------
 const $=q=>document.getElementById(q);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
@@ -497,6 +563,7 @@ const NOTES=[[3.4,'Tires and rims: tread grooves, 8 black spokes, silver lip rin
   [99,'Curved roof.']];
 function noteFor(l){
   if(cur.kind==='tacoma'){const y=(l-.5)/SY;return NOTES.find(n=>y<n[0])[1];}
+  if(cur.kind==='model')return `${fmtIn((l-1)*cur.scale)} to ${fmtIn(l*cur.scale)} above the ground.`;
   if(cur.orient==='flat')return `Lying flat. Layer ${l} of ${Y} thick.`;
   return `Picture row ${Y-l+1} from the top, built from the ground up.`+(Z>1?` Every row is ${Z} blocks deep.`:'');
 }
@@ -511,7 +578,9 @@ function loadAnchor(){
   const a=store.get('anchor-'+cur.id,null);anchor=a;
   $('ax').value=a?a.x:'';$('ay').value=a?a.y:'';$('az').value=a?a.z:'';
   $('acol').value=a?a.c:'E';fillRowSel(a?a.r:null);
-  $('anchornote').textContent=cur.kind==='tacoma'
+  $('anchornote').textContent=cur.kind==='model'
+    ?'Everything is measured from col 1, row 1, layer 1: the lowest corner of the drawing\'s footprint (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
+    :cur.kind==='tacoma'
     ?'Everything is measured from col 1, row 1, layer 1: the front, passenger-side corner of the truck, on the ground (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.'
     :'Everything is measured from col 1, row 1, layer 1: the bottom-left corner of the picture (the red post in the 3D view). Stand on that spot in the game, turn on Show Coordinates, and type the numbers here.';
   showAnchorInfo();
@@ -576,7 +645,7 @@ function buildMeshes(){
   post.position.set(0.5-X/2,ph/2,0.5-Z/2);scene.add(post);dyn.push(post);
   controls.target.set(0,Y*0.45,0);setView('front');resize();
 }
-function setView(v){if(!camera)return;const d=Math.max(X,Y*1.4,Z)*1.6,dir=new THREE.Vector3();
+function setView(v){if(!camera)return;const d=Math.max(X,Y*1.4,Z)*(cur&&cur.kind==='model'?2.1:1.6),dir=new THREE.Vector3();
   const pic=cur&&cur.kind==='picture';
   if(v==='front')pic?dir.set(0.15,0.2,1):dir.set(-0.72,0.42,0.6);
   if(v==='rear')pic?dir.set(-0.15,0.2,-1):dir.set(0.75,0.45,-0.55);
@@ -657,7 +726,7 @@ function renderLegend(){const c=counts(L-1),ul=$('legend');ul.innerHTML='';
     li.innerHTML=`<span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span><span>${bl.name}</span><span class="n">${c[v]}</span>`;ul.appendChild(li);}}
 function renderMats(){const c=counts(),tb=$('mats');tb.innerHTML='';
   for(const v of Object.keys(c).sort((a,b)=>c[b]-c[a])){const bl=CAT[v],tr=document.createElement('tr');
-    tr.innerHTML=`<td><span class="row" style="flex-wrap:nowrap"><span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span>${bl.name}</span></td><td>${cur.kind==='tacoma'?(bl.use||''):'Picture'}</td><td class="num">${c[v].toLocaleString()}</td><td class="num">${stacks(c[v])}</td>`;tb.appendChild(tr);}
+    tr.innerHTML=`<td><span class="row" style="flex-wrap:nowrap"><span class="sw" style="background:${bl.c};color:${ink(bl.c)}">${codeOf[v]}</span>${bl.name}</span></td><td>${cur.kind==='tacoma'?(bl.use||''):cur.kind==='model'?'Model':'Picture'}</td><td class="num">${c[v].toLocaleString()}</td><td class="num">${stacks(c[v])}</td>`;tb.appendChild(tr);}
   const total=Object.values(c).reduce((a,b)=>a+b,0);
   $('chips').innerHTML=`<span class="chip"><b>${X}</b> long</span><span class="chip"><b>${Z}</b> ${cur.kind==='picture'&&cur.orient!=='flat'?'deep':'wide'}</span><span class="chip"><b>${Y}</b> layers</span><span class="chip"><b>${total.toLocaleString()}</b> blocks</span>`;}
 function renderLayers(){const box=$('layers');box.innerHTML='';box.hidden=Y>120;
@@ -736,21 +805,22 @@ $('tvopen').onclick=tvOpen;$('tvexit').onclick=tvClose;
 $('tvnext').onclick=()=>tvStep(1,true);$('tvback').onclick=()=>tvStep(-1,false);$('tvskip').onclick=()=>tvStep(1,false);
 
 // ---------- library ----------
-function saveLib(){if(!store.set(LIBKEY,lib)){$('libinfo').textContent='This browser would not save it (storage full or blocked). It stays until you close the page; delete a build to make room.';return false;}$('libinfo').textContent='Saved in this browser.';return true;}
+function saveLib(){if(!store.set(LIBKEY,lib.map(b=>{const c=Object.assign({},b);delete c._tris;return c;}))){$('libinfo').textContent='This browser would not save it (storage full or blocked). It stays until you close the page; delete a build to make room.';return false;}$('libinfo').textContent='Saved in this browser.';return true;}
 function renderShelf(){
   const sh=$('shelf');sh.innerHTML='';
-  const card=(bid,name,thumb)=>{const b=document.createElement('button');b.className='bcard'+(cur&&cur.id===bid?' cur':'');
-    b.innerHTML=`<div class="th"${thumb?` style="background-image:url('${thumb}')"`:''}>${thumb?'':'TACOMA'}</div><span>${name}</span>`;
+  const card=(bid,name,thumb,tag)=>{const b=document.createElement('button');b.className='bcard'+(cur&&cur.id===bid?' cur':'');
+    b.innerHTML=`<div class="th"${thumb?` style="background-image:url('${thumb}')"`:''}>${thumb?'':(tag||'TACOMA')}</div><span>${name}</span>`;
     b.onclick=()=>openBuild(bid);sh.appendChild(b);};
   card('tacoma','Lifted Tacoma',null);
-  for(const b of lib)card(b.id,b.name.replace(/[<>&"]/g,''),b.img);
+  for(const b of lib)card(b.id,b.name.replace(/[<>&"]/g,''),b.img||null,b.kind==='model'?'3D':'');
   const add=document.createElement('label');add.className='bcard add';
-  add.innerHTML='<div class="th">+</div><span>From a picture</span><input type="file" id="upload" accept="image/*">';
+  add.innerHTML='<div class="th">+</div><span>From a picture or 3D file</span><input type="file" id="upload" accept="image/*,.stl,.obj">';
   sh.appendChild(add);
   add.querySelector('input').onchange=onUpload;
 }
 async function onUpload(e){
   const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(/\.(stl|obj)$/i.test(f.name))return onModel(f);
   $('libinfo').textContent='Reading the picture…';
   try{
     const url=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(new Error('That file could not be read.'));fr.readAsDataURL(f);});
@@ -761,8 +831,20 @@ async function onUpload(e){
     lib.push(b);saveLib();openBuild(b.id);
   }catch(err){$('libinfo').textContent=err.message+' Try a PNG or JPG.';}
 }
+async function onModel(f){
+  $('libinfo').textContent='Reading the 3D file…';
+  try{
+    const tris=parseMesh(f.name,await f.arrayBuffer());
+    const b={id:'m'+Date.now().toString(36),kind:'model',name:(f.name.replace(/\.[^.]+$/,'')||'Model').slice(0,40),tris:b64(tris),scale:2,block:'Oak Planks'};
+    b._tris=tris;lib.push(b);
+    if(b.tris.length>3.5e6){$('libinfo').textContent='That file is too big to save in this browser. It stays until you close the page.';}
+    else saveLib();
+    openBuild(b.id);
+  }catch(err){$('libinfo').textContent=err.message+' Export STL or OBJ from Draft Studio and try again.';}
+}
 function setDesc(){
   if(cur.kind==='tacoma'){$('bname').textContent='Lifted Tacoma';$('bdesc').textContent='Your black double-cab Tacoma with the lift, chrome bull bar with LED light bar, hard bed cover, flared fenders and black off-road wheels, in full blocks at any size you pick.';}
+  else if(cur.kind==='model'){$('bname').textContent=cur.name;$('bdesc').textContent=`Your 3D drawing at 1 block = ${scaleLabel(cur.scale)}: ${X} × ${Z} blocks and ${Y} tall, about ${fmtIn(X*cur.scale)} × ${fmtIn(Z*cur.scale)} × ${fmtIn(Y*cur.scale)} in real life.`;}
   else{$('bname').textContent=cur.name;$('bdesc').textContent=`Your picture as ${cur.orient==='flat'?'a floor':'a wall'} of full blocks, ${X} wide × ${cur.orient==='flat'?Z:Y} tall${(cur.orient==='flat'?Y:Z)>1?', '+(cur.orient==='flat'?Y:Z)+' thick':''}.`;}
 }
 function afterLoad(){
@@ -775,6 +857,11 @@ function openTacoma(lx,wz,hy){
     $('sizeinfo').textContent=`${X} long × ${Z} wide × ${Y} tall, about ${(518/X).toFixed(1)} cm (${(204/X).toFixed(1)} in) per block. Full blocks only, no stairs or slabs.`;
     store.set('tacoma-size2',[X,Z,Y]);},20);
 }
+function openModel(b){
+  $('modelinfo').textContent='Building…';
+  setTimeout(()=>{try{voxelModel(b);}catch(err){$('modelinfo').textContent=err.message;return;}
+    afterLoad();$('modelinfo').textContent=`${X} × ${Z} × ${Y} blocks. Draft Studio exports in real size, so the scale sets how big it comes out.`;},20);
+}
 async function openPicture(b){
   $('picinfo').textContent='Building…';
   try{await voxelPicture(b);}catch(err){$('picinfo').textContent=err.message;return;}
@@ -785,8 +872,9 @@ function openBuild(bid){
   const b=bid==='tacoma'?{id:'tacoma',kind:'tacoma',name:'Lifted Tacoma'}:lib.find(x=>x.id===bid);
   if(!b)return openBuild('tacoma');
   cur=b.kind==='tacoma'?b:Object.assign({kind:'picture'},b);store.set('mc-current',bid);
-  $('sizecard').hidden=cur.kind!=='tacoma';$('piccard').hidden=cur.kind!=='picture';
+  $('sizecard').hidden=cur.kind!=='tacoma';$('piccard').hidden=cur.kind!=='picture';$('modelcard').hidden=cur.kind!=='model';
   resetDel();
+  if(cur.kind==='model'){$('mname').value=cur.name;$('mscale').value=String(cur.scale);$('mblock').value=cur.block;openModel(cur);return;}
   if(cur.kind==='tacoma'){const s=store.get('tacoma-size2',[102,36,41]);$('sL').value=s[0];$('sW').value=s[1];$('sH').value=s[2];syncLabels();openTacoma(s[0],s[1],s[2]);}
   else{$('pname').value=cur.name;$('pw').value=cur.w;$('pt').value=cur.t;$('por').value=cur.orient;$('ppal').value=cur.pal;$('pbg').checked=!!cur.bg;
     getImg(cur.img).then(im=>{$('pw').max=Math.min(256,Math.max(64,im.naturalWidth));picLabels(im);}).catch(()=>{});
@@ -795,6 +883,10 @@ function openBuild(bid){
 function picLabels(im){$('vPW').textContent=$('pw').value;$('vPT').textContent=$('pt').value;
   if(im)$('vPH').textContent=Math.max(1,Math.round($('pw').value*im.naturalHeight/im.naturalWidth));}
 function updatePic(field,val){const b=lib.find(x=>x.id===cur.id);if(!b)return;b[field]=val;cur[field]=val;saveLib();}
+$('mblock').innerHTML=PALS.all.map(v=>CAT[v].name).concat(['Black Concrete','Polished Blackstone','Iron Block','Light Gray Stained Glass']).filter((n,i,a)=>a.indexOf(n)===i).sort().map(n=>`<option>${n}</option>`).join('');
+$('mscale').onchange=()=>{updatePic('scale',+$('mscale').value);openModel(cur);};
+$('mblock').onchange=()=>{updatePic('block',$('mblock').value);openModel(cur);};
+$('mname').addEventListener('change',()=>{const v=$('mname').value.trim()||'Model';updatePic('name',v);setDesc();renderShelf();});
 $('pw').addEventListener('input',()=>getImg(cur.img).then(picLabels));
 $('pt').addEventListener('input',()=>picLabels());
 $('pw').addEventListener('change',()=>{updatePic('w',+$('pw').value);openPicture(cur);});
@@ -803,8 +895,9 @@ $('por').onchange=()=>{updatePic('orient',$('por').value);openPicture(cur);};
 $('ppal').onchange=()=>{updatePic('pal',$('ppal').value);openPicture(cur);};
 $('pbg').onchange=()=>{updatePic('bg',$('pbg').checked);openPicture(cur);};
 $('pname').addEventListener('change',()=>{const v=$('pname').value.trim()||'Picture';updatePic('name',v);setDesc();renderShelf();});
-function resetDel(){$('delrow').innerHTML='<button id="del" class="danger">Delete this build</button>';$('del').onclick=askDel;}
-function askDel(){$('delrow').innerHTML='<span>Delete it for good?</span><button id="dely" class="danger">Yes, delete</button><button id="deln">Keep it</button>';
+function delBox(){return cur&&cur.kind==='model'?$('mdelrow'):$('delrow');}
+function resetDel(){$('delrow').innerHTML=$('mdelrow').innerHTML='';delBox().innerHTML='<button id="del" class="danger">Delete this build</button>';$('del').onclick=askDel;}
+function askDel(){delBox().innerHTML='<span>Delete it for good?</span><button id="dely" class="danger">Yes, delete</button><button id="deln">Keep it</button>';
   $('deln').onclick=resetDel;
   $('dely').onclick=()=>{lib=lib.filter(x=>x.id!==cur.id);saveLib();openBuild('tacoma');};}
 
