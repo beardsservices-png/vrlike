@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Bedrock Command Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a pocket reference card — sticky search, sections of command cards, syntax in mono with copyable examples */
+:root{
+  --bg:#eceef0; --panel:#ffffff; --line:#d3d7dc; --fg:#1d2126; --muted:#5d656e;
+  --accent:#d99a00; --accent-ink:#1d2126; --code:#f4f5f6; --warn:#b3322e;
+  --display:"Pixelify Sans", ui-monospace, monospace;
+  --body:"IBM Plex Sans", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#16191d; --panel:#1f2328; --line:#343a42; --fg:#e7eaed; --muted:#9aa3ad;
+  --accent:#f1b419; --accent-ink:#16191d; --code:#262b31; --warn:#ef6b62; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#16191d; --panel:#1f2328; --line:#343a42; --fg:#e7eaed; --muted:#9aa3ad;
+  --accent:#f1b419; --accent-ink:#16191d; --code:#262b31; --warn:#ef6b62; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted);max-width:66ch}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar input{flex:1;min-width:200px;font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--fg)}
+.bar a{font-size:13px;color:var(--fg);text-decoration:none;border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:4px;white-space:nowrap}
+.bar a:hover{border-color:var(--accent)}
+.bar input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.grp{display:flex;flex-direction:column;gap:10px;scroll-margin-top:70px}
+h2{font-family:var(--display);font-weight:500;font-size:24px;margin:8px 0 0}
+.grp>p{margin:0;color:var(--muted);max-width:70ch}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,480px),1fr));gap:10px}
+.cmd{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cmd h3{margin:0;font-family:var(--mono);font-size:16px;font-weight:600}
+.cmd .what{margin:0}
+.syn{font-family:var(--mono);font-size:13px;background:var(--code);border-radius:4px;padding:7px 9px;overflow-x:auto;white-space:pre}
+.ex{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}
+.ex li{display:flex;gap:8px;align-items:flex-start;min-width:0}
+.ex code{font-family:var(--mono);font-size:13px;flex:1;min-width:0;overflow-wrap:anywhere;padding-top:3px}
+.ex small{display:block;font-family:var(--body);color:var(--muted);font-size:13px}
+.copy{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--code);color:var(--fg);padding:3px 8px;border-radius:4px;cursor:pointer;flex:none}
+.copy:hover{border-color:var(--accent)}
+.note{font-size:13px;color:var(--muted);margin:0}
+.warn{color:var(--warn)}
+.basics{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.basics div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;min-width:0}
+.basics b:first-child{display:block;margin-bottom:2px}
+.basics code{font-family:var(--mono);font-size:13px;background:var(--code);padding:1px 5px;border-radius:3px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td code{font-family:var(--mono);font-size:13px}
+.empty{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Bedrock Command Guide</h1>
+    <p>The commands that matter for building, written for Minecraft Bedrock on PS5. Each one shows how to type it and examples you can copy. <code>&lt;angle brackets&gt;</code> are required, <code>[square brackets]</code> are optional.</p>
+  </header>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="Search: fill, copy, day, fly, under my feet…" aria-label="Search commands">
+    <a href="#start">Start</a><a href="#build">Building</a><a href="#cmdblock">Command blocks</a><a href="#special">Special blocks</a><a href="#tacoma">Tacoma IDs</a>
+  </div>
+
+  <section class="grp" id="start">
+    <h2>Before you start</h2>
+    <div class="basics">
+      <div><b>Turn on cheats</b>World settings → <i>Cheats</i> → Activate Cheats. That world stops earning trophies; your other worlds aren't affected.</div>
+      <div><b>Open chat on PS5</b>Press <b>right on the D-pad</b>, type <code>/</code>, and suggestions pop up as you type. A USB keyboard plugged into the PS5 is much faster.</div>
+      <div><b>See your coordinates</b>Settings → Game → <i>Show Coordinates</i>, or <code>/gamerule showcoordinates true</code>. X is east–west, Y is up, Z is north–south.</div>
+      <div><b>Exact spots</b><code>100 64 -20</code> means X 100, Y 64, Z −20 in the world.</div>
+      <div><b>Relative to you: ~</b><code>~ ~-1 ~</code> is the block under your feet. <code>~5 ~ ~</code> is 5 blocks east of you.</div>
+      <div><b>Where you're looking: ^</b><code>^ ^ ^5</code> is 5 blocks straight ahead of where you face, <code>^-2 ^ ^</code> is 2 to your left.</div>
+      <div><b>Who it affects</b><code>@s</code> you · <code>@p</code> nearest player · <code>@a</code> all players · <code>@r</code> random player · <code>@e</code> every entity (mobs, items, you).</div>
+      <div><b>Narrow it down</b><code>@e[type=cow]</code> only cows · <code>@e[type=item,r=20]</code> dropped items within 20 blocks · <code>@a[name=Brian]</code>.</div>
+      <div><b>Block names</b>Lowercase with underscores: <code>black_concrete</code>, <code>smooth_stone</code>. If one is rejected, type the first letters and pick it from the list.</div>
+    </div>
+  </section>
+
+  <div id="groups"></div>
+
+  <section class="grp" id="tacoma">
+    <h2>Block IDs for the Tacoma build</h2>
+    <p>The same blocks the Tacoma build plan uses, typed the way commands want them.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Letter</th><th>Block</th><th>Type this</th></tr></thead>
+      <tbody id="tacoids"></tbody>
+    </table></div>
+  </section>
+  <p class="empty" id="none" hidden>No command matches that. Try a shorter word like "fill" or "time".</p>
+</div>
+
+<script>
+const G=[
+ {id:'build',title:'Building',intro:'These place, copy and save blocks. They only work where the world is loaded, near you or inside a ticking area.',cmds:[
+  {n:'/setblock',w:'Places one block.',s:'/setblock <x y z> <block> [replace|destroy|keep]',
+   ex:[['/setblock ~ ~-1 ~ stone','Stone under your feet.'],['/setblock 100 64 -20 black_concrete','One block at an exact spot.'],['/setblock ~ ~ ~2 glass keep','Only places it if the spot is empty (keep).']]},
+  {n:'/fill',w:'Fills a box between two corners with one block. The biggest time-saver for building. Up to 32,768 blocks per command, for example 32 × 32 × 32.',s:'/fill <x1 y1 z1> <x2 y2 z2> <block> [replace|destroy|hollow|keep|outline]\n/fill <x1 y1 z1> <x2 y2 z2> <block> replace <old block>',
+   ex:[['/fill 146 104 -12 164 104 -12 black_concrete','A straight row of 19 blocks, like one run from the Tacoma plan.'],['/fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 smooth_stone','An 11 × 11 floor under you.'],['/fill ~-5 ~ ~-5 ~5 ~10 ~5 air','Clears the space around you.'],['/fill ~-4 ~ ~-4 ~4 ~5 ~4 stone hollow','A box with air inside (a room).'],['/fill ~-4 ~ ~-4 ~4 ~5 ~4 stone outline','Walls and roof only, inside left as it was.'],['/fill ~-10 ~-1 ~-10 ~10 ~-1 ~10 grass_block replace dirt','Swaps only the dirt for grass.']]},
+  {n:'/clone',w:'Copies a box of blocks to another spot. The new spot is where the lowest corner lands.',s:'/clone <x1 y1 z1> <x2 y2 z2> <destination x y z> [replace|masked] [normal|force|move]',
+   ex:[['/clone 0 64 0 10 70 10 20 64 0','Copies the area 20 blocks east.'],['/clone 0 64 0 10 70 10 20 64 0 masked','Copies everything except air.'],['/clone 0 64 0 10 70 10 20 64 0 replace move','Moves it instead, leaving air behind.']]},
+  {n:'/structure',w:'Saves a build under a name, then pastes it anywhere, turned or mirrored. One save holds up to 64 × 384 × 64 blocks, so a bigger build is saved in pieces.',s:'/structure save <name> <x1 y1 z1> <x2 y2 z2>\n/structure load <name> <x y z> [0_degrees|90_degrees|180_degrees|270_degrees] [none|x|z|xz]\n/structure delete <name>',
+   ex:[['/structure save truck_front 0 64 0 50 104 35','Saves the front half of a build.'],['/structure load truck_front ~ ~ ~ 90_degrees','Pastes it here, turned a quarter.'],['/structure load truck_front ~ ~ ~ 0_degrees x','Pastes a mirror image.']]},
+  {n:'/tickingarea',w:'Keeps a far-away area loaded so /fill and /clone keep working there when you walk off. Up to 10 at a time.',s:'/tickingarea add <x1 y1 z1> <x2 y2 z2> [name]\n/tickingarea remove <name>\n/tickingarea list',
+   ex:[['/tickingarea add 0 0 0 200 0 100 buildsite','Keeps the build site loaded.'],['/tickingarea remove buildsite','Lets it unload again.']]}
+ ]},
+ {id:'move',title:'Getting around',cmds:[
+  {n:'/tp',w:'Teleports you, or anyone, to a spot or a player. /teleport is the same command.',s:'/tp [who] <x y z> [facing <x y z>]\n/tp [who] <player>',
+   ex:[['/tp @s 100 64 -20','Jump to an exact spot.'],['/tp @s ~ ~20 ~','20 blocks straight up.'],['/tp @s 100 80 -60 facing 100 64 -20','Lands you looking at your build.']]},
+  {n:'/locate',w:'Finds the nearest structure or biome and gives its coordinates.',s:'/locate structure <structure>\n/locate biome <biome>',
+   ex:[['/locate structure village',''],['/locate biome cherry_grove','']]},
+  {n:'/spawnpoint',w:'Sets where you come back when you die. /setworldspawn sets it for the whole world.',s:'/spawnpoint [who] [x y z]\n/setworldspawn [x y z]',
+   ex:[['/spawnpoint @s ~ ~ ~','Respawn right here.']]}
+ ]},
+ {id:'world',title:'World settings',intro:'Handy while you build: always daytime, no rain, no mobs wandering into the build.',cmds:[
+  {n:'/time',w:'Changes the time of day.',s:'/time set <day|noon|night|midnight|number>\n/time add <number>',
+   ex:[['/time set day',''],['/time set noon','Sun straight overhead, best light for building.']]},
+  {n:'/weather',w:'Changes the weather. The number is how long it lasts, in seconds.',s:'/weather <clear|rain|thunder> [seconds]',
+   ex:[['/weather clear','']]},
+  {n:'/gamerule',w:'Turns world rules on or off. These are the useful ones for building.',s:'/gamerule <rule> <true|false|number>',
+   ex:[['/gamerule dodaylightcycle false','Freezes the time of day.'],['/gamerule doweathercycle false','No more rain.'],['/gamerule domobspawning false','No mobs spawn.'],['/gamerule mobgriefing false','Creepers stop breaking blocks.'],['/gamerule dofiretick false','Fire stops spreading.'],['/gamerule showcoordinates true','Coordinates on screen.'],['/gamerule keepinventory true','Keep items when you die.'],['/gamerule commandblockoutput false','Stops command blocks filling the chat.']]},
+  {n:'/difficulty',w:'Sets the difficulty.',s:'/difficulty <peaceful|easy|normal|hard>',ex:[['/difficulty peaceful','No hostile mobs at all.']]}
+ ]},
+ {id:'you',title:'You and your stuff',cmds:[
+  {n:'/gamemode',w:'Switches mode. Short forms c, s, a work too.',s:'/gamemode <creative|survival|adventure|spectator> [who]',
+   ex:[['/gamemode creative',''],['/gamemode spectator','Fly through blocks to check the inside of a build.']]},
+  {n:'/give',w:'Gives you any item or block. Amounts over 64 fill several stacks.',s:'/give <who> <item> [amount]',
+   ex:[['/give @s black_concrete 64',''],['/give @s command_block','']]},
+  {n:'/effect',w:'Gives a potion effect. Seconds, then strength (0 is level 1), then true hides the swirls.',s:'/effect <who> <effect> [seconds] [strength] [hide particles]\n/effect <who> clear',
+   ex:[['/effect @s night_vision 99999 0 true','See in the dark for a long time.'],['/effect @s speed 600 2 true',''],['/effect @s haste 600 2 true','Breaks blocks faster.'],['/effect @s clear','Removes every effect.']]},
+  {n:'/clear',w:'Removes items from your inventory.',s:'/clear [who] [item]',ex:[['/clear @s dirt','Only the dirt.'],['/clear @s','Everything.']]},
+  {n:'/enchant',w:'Enchants the item in your hand.',s:'/enchant <who> <enchantment> [level]',ex:[['/enchant @s efficiency 5','']]},
+  {n:'/xp',w:'Gives experience points, or whole levels with an L.',s:'/xp <amount> [who]\n/xp <amount>L [who]',ex:[['/xp 30L @s','30 levels.']]}
+ ]},
+ {id:'mobs',title:'Mobs and items',cmds:[
+  {n:'/summon',w:'Spawns a mob or thing.',s:'/summon <entity> [x y z]',ex:[['/summon cow ~ ~ ~',''],['/summon lightning_bolt ~5 ~ ~','']]},
+  {n:'/kill',w:'Removes entities. Always add a type, because @e on its own includes you.',s:'/kill <who>',
+   ex:[['/kill @e[type=item]','Clears every dropped item.'],['/kill @e[type=zombie,r=50]','Zombies within 50 blocks.']],warn:'/kill @e with nothing after it kills you, your pets and every mob.'}
+ ]},
+ {id:'chat',title:'Messages',cmds:[
+  {n:'/say  /tell  /title',w:'Messages to everyone, to one player, or big text across the screen.',s:'/say <message>\n/tell <player> <message>\n/title <who> title <text>',
+   ex:[['/title @a title Truck done!','']]}
+ ]},
+ {id:'cmdblock',title:'Command blocks',intro:'A command block runs a command for you, once or over and over. Get one with /give @s command_block, place it, and tap it to type the command. Set Block Type and Redstone at the top.',cmds:[
+  {n:'Impulse (orange)',w:'Runs once each time it gets a redstone signal, such as from a button.',s:'Block Type: Impulse · Redstone: Needs Redstone',ex:[['/time set day','Put on a button for instant daytime.']]},
+  {n:'Repeat (purple)',w:'Runs 20 times a second. Set Redstone to "Always Active" and it never stops. This is how you place stone under your feet as you run.',s:'Block Type: Repeat · Redstone: Always Active',
+   ex:[['execute as @p at @s run setblock ~ ~-1 ~ stone keep','Stone appears under whoever is nearest, wherever there is air. Break the block to stop it.'],['execute as @p at @s run fill ~-1 ~-1 ~-1 ~1 ~-1 ~1 glass keep','A 3 × 3 glass path that follows you.'],['execute as @p at @s if block ~ ~-1 ~ water run setblock ~ ~-1 ~ ice','Turns water to ice as you walk on it.']]},
+  {n:'Chain (green)',w:'Runs right after the block pointing into it, for multi-step machines.',s:'Block Type: Chain · Redstone: Always Active',ex:[['say step two','']]},
+  {n:'/execute',w:'Runs a command as someone or from where they stand. "as" picks who, "at" moves to where they are, "if block" adds a check.',s:'/execute as <who> at @s [if block <x y z> <block>] run <command>',
+   ex:[['/execute as @a at @s run setblock ~ ~-1 ~ gold_block','A gold block under every player, once.']]}
+ ]}
+];
+const SPECIAL=[['barrier','Invisible wall nobody can break or pass. You only see it while holding one.'],['light_block','Invisible light source. Light up the inside of a build with no torches.'],['structure_block','Saves and loads builds, the block version of /structure.'],['structure_void','Marks spots a structure block leaves untouched when it pastes.'],['command_block','Runs commands. The repeating_command_block and chain_command_block are separate items.'],['allow  /  deny','Mark where players may (allow) or may not (deny) build above them. Mostly for worlds you share with others.'],['border_block','An invisible wall from the ground to the sky. Good for fencing off a build area.'],['jigsaw','Joins structure pieces together, for advanced structure building.'],['mob_spawner','A monster spawner you can place.'],['bedrock','The unbreakable bottom-of-the-world block.']];
+const TACO=[['B','Black Concrete','black_concrete'],['T','Black Wool','black_wool'],['P','Polished Blackstone','polished_blackstone'],['G','Gray Concrete','gray_concrete'],['I','Iron Block','iron_block'],['S','Smooth Stone','smooth_stone'],['W','Light Gray Stained Glass','light_gray_stained_glass'],['H','White Stained Glass','white_stained_glass'],['Y','Yellow Concrete','yellow_concrete'],['O','Orange Concrete','orange_concrete'],['R','Red Concrete','red_concrete'],['K','Blackstone','blackstone'],['Q','Quartz Block','quartz_block'],['F','Sea Lantern','sea_lantern'],['U','Gray Wool','gray_wool']];
+
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function copyBtn(t){return `<button class="copy" data-t="${esc(t)}">Copy</button>`;}
+const box=document.getElementById('groups');
+box.innerHTML=G.map(g=>`<section class="grp" id="${g.id}"><h2>${g.title}</h2>${g.intro?`<p>${g.intro}</p>`:''}<div class="cards">`+
+  g.cmds.map(c=>`<article class="cmd" data-k="${esc((c.n+' '+c.w+' '+c.s+' '+c.ex.map(e=>e.join(' ')).join(' ')).toLowerCase())}"><h3>${esc(c.n)}</h3><p class="what">${c.w}</p><div class="syn">${esc(c.s)}</div>`+
+    `<ul class="ex">${c.ex.map(([e,d])=>`<li>${copyBtn(e)}<code>${esc(e)}${d?`<small>${d}</small>`:''}</code></li>`).join('')}</ul>`+(c.warn?`<p class="note warn">${esc(c.warn)}</p>`:'')+`</article>`).join('')+
+  `</div></section>`).join('')+
+  `<section class="grp" id="special"><h2>Special blocks you only get by command</h2><p>Give yourself any of these with <code>/give @s</code> and the name, for example <code>/give @s barrier</code>.</p><div class="cards">`+
+  SPECIAL.map(([n,d])=>`<article class="cmd" data-k="${esc((n+' '+d).toLowerCase())}"><h3>${esc(n)}</h3><p class="what">${d}</p></article>`).join('')+`</div></section>`;
+document.getElementById('tacoids').innerHTML=TACO.map(([l,n,i])=>`<tr><td><code>${l}</code></td><td>${n}</td><td><code>${i}</code> ${copyBtn(i)}</td></tr>`).join('');
+document.addEventListener('click',e=>{const b=e.target.closest('.copy');if(!b)return;const t=b.dataset.t;
+  const done=()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200);};
+  try{navigator.clipboard.writeText(t).then(done,()=>sel(b));}catch(err){sel(b);}});
+function sel(b){const c=b.parentElement.querySelector('code');if(!c)return;const r=document.createRange();r.selectNodeContents(c.firstChild||c);const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected';}
+document.getElementById('q').addEventListener('input',e=>{const q=e.target.value.trim().toLowerCase();let any=false;
+  document.querySelectorAll('.cmd').forEach(c=>{const hit=!q||c.dataset.k.includes(q);c.hidden=!hit;if(hit)any=true;});
+  document.querySelectorAll('section.grp').forEach(s=>{const cs=s.querySelectorAll('.cmd');if(cs.length)s.hidden=[...cs].every(c=>c.hidden);});
+  const tac=document.getElementById('tacoma'),st=document.getElementById('start');tac.hidden=!!q&&!'tacoma block id black concrete'.includes(q);st.hidden=!!q;
+  document.getElementById('none').hidden=any||!tac.hidden;});
+</script>
+</body>
+</html>

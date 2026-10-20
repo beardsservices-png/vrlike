@@ -165,3 +165,16 @@ standalone loop.
   (top / side / front), warnings where the track is too steep for rails, and copy-ready
   `/setblock` commands. Open `tools/mc-track-plotter/index.html` in any browser (no
   server needed; three.js loads from cdnjs). Projects save in that browser's local storage.
+- **`tools/mc-builder/`**: Minecraft build planner, full blocks only. Built in: Brian's
+  lifted Tacoma (Plotz-style size sliders; default 1 block = 2 in, 102 x 36 x 41). Also
+  turns any picture into a block build (saved in that browser). 3D view, a grid per layer,
+  row-by-row runs, TV build mode (one row at a time), and a starting block: enter its
+  in-game X/Y/Z and every run gets a ready `/fill` command. Moved here from
+  `virtual-board-games` on 20 Oct. Live copy: claude.ai artifact *Lifted Tacoma Build*.
+- **`tools/mc-commands/`**: Bedrock Command Guide (PS5): syntax and copyable examples
+  for the building commands (`/fill`, `/clone`, `/structure`, `/tickingarea` …), world
+  and player commands, command-block recipes (e.g. stone under your feet as you run),
+  command-only blocks, and the Tacoma's block IDs. Live copy: claude.ai artifact
+  *Bedrock Command Guide*.
+
+All three are single HTML files that open in any browser; three.js comes from a CDN.
