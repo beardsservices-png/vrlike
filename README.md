@@ -174,8 +174,10 @@ standalone loop.
   1 m), filling the inside by flood-filling the outside air. Two more built-in examples: *Frozen Caldera*
   (128 x 128 x 56 ring of icy peaks around a crater with a frozen lake, from Brian's idea)
   and *Caldera Watchtower* (17 x 17 x 44, sized to stand on the caldera's island). Plus *Wicked Ice Dragon*
-  (40 x 42 x 66): perched statue, legs fused into a rock base, wings folded, head drawn 1.5x
-  with slit eyes, angry brows, open fanged jaw, glowing throat, horns (`genDragon`). Moved here from
+  (120 x 126 x 198, designed in 40 x 42 x 66 units sampled at 3 blocks each): perched statue,
+  legs fused into a rock base, wings folded with finger bones, head drawn 1.5x with ringed slit
+  eyes, brow spikes, ridged horns, rows of teeth on dark gums, glowing throat, frill and chin
+  spikes (`genDragon`). Moved here from
   `virtual-board-games` on 20 Oct. Live copy: claude.ai artifact *Lifted Tacoma Build*.
 - **`tools/mc-commands/`**: Bedrock Command Guide (PS5): syntax and copyable examples
   for the building commands (`/fill`, `/clone`, `/structure`, `/tickingarea` …), world
