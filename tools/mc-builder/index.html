@@ -599,25 +599,32 @@ function genDragon(){
   for(let k=0;k<Z;k++){const z=(k+.5)/S;
   for(let i=0;i<X;i++){const x=(i+.5)/S,ax=C+Math.abs(x-C);let v=0;
     if(head){
-      const hx=C+(x-C)/1.5,hy=50+(y-46)/1.5,hz=7+(z-10.1)/1.5,hax=C+Math.abs(hx-C);   // the head is drawn 1.5x
-      const e=ell(hax,hy,hz,C+4.0,52.1,4.4,1.25,1.4,1.3);
-      if(e<=1){const dx=Math.abs(hax-(C+4.0));v=dx<0.32?BK:e>0.62?SHR:GLS;}                                   // eye: glowing ring, bright core, slit
-      else if(cap(hax,hy,hz,[C+6.2,54.8,7.2],[C+1.6,53.0,3.2],1.3,0.95))v=PDS;                                   // angry brow ridge
-      else if(cap(hax,hy,hz,[C+5.2,55.6,6.6],[C+6.4,57.6,8.4],0.55,0.12)||cap(hax,hy,hz,[C+3.4,54.6,4.8],[C+3.9,56.3,5.6],0.45,0.1))v=PDS; // brow spikes
-      else{const h=chainT(hax,hy,hz,HORN,HR);
-        if(h>=0)v=(Math.floor(h*7)%2)?PDS:KS;                                                                     // ridged horns
-        else if(chainT(hax,hy,hz,[[C+5.6,48.6,10],[C+9.4,47.6,14],[C+11.2,46,17.5]],[1.3,0.8,0.3])>=0)v=PDS;        // cheek spikes
-        else if(FRILL.some(f=>cap(hax,hy,hz,[f[0],f[1],f[2]],[f[3],f[4],f[5]],0.75,0.12)))v=KS;                      // frill behind the jaw
-        else if(cap(hx,hy,hz,[C,51.4,2.6],[C,53.4,1.0],0.9,0.3)||cap(hx,hy,hz,[C,52.6,4.6],[C,54,3.8],0.55,0.15))v=PDS; // nose horns
-        else if(cap(hax,hy,hz,[C+2.3,46.8,1.9],[C+2.3,43.6,1.9],0.75,0.18)||cap(hax,hy,hz,[C+1.7,44.4,2.4],[C+1.7,47.0,2.4],0.6,0.15)||
-                TEETH.some(t=>cap(hax,hy,hz,[C+2.9+t*0.12,46.7,t+1.6],[C+2.9+t*0.12,45.5,t+1.6],0.34,0.1)||cap(hax,hy,hz,[C+2.3+t*0.1,44.9,t+2],[C+2.3+t*0.1,46,t+2],0.3,0.1)))v=QZ; // fangs and rows of teeth
-        else if(ell(hx,hy,hz,C,46.2,6.4,2.4,1.3,3.3)<=1)v=SL;                                                     // glowing throat
-        else if(ell(hax,hy,hz,C+1.2,49.6,0.5,0.38,0.38,0.45)<=1)v=BK;                                              // nostrils
-        else if(cap(hx,hy,hz,[C,50.4,7.2],[C,48.9,0.6],3.7,2.5))v=hy<47.6?PDS:((Math.floor(hz*2.2)+Math.floor(hax*2.2))%3===0?BI:PI_); // upper jaw
-        else if(cap(hx,hy,hz,[C,45.2,8.6],[C,41.4,2.2],2.7,1.8))v=hy>44.6?PDS:PI_;                                 // lower jaw, dark gums
-        else if(cap(hax,hy,hz,[C+1.6,42.4,7.5],[C+2.2,39.6,9.2],0.6,0.15)||cap(hx,hy,hz,[C,42.6,6],[C,39.8,6.8],0.6,0.15))v=PDS; // chin spikes
-        else if(ell(hx,hy,hz,C,51.6,10.6,6,5,6.2)<=1)v=(Math.floor(hy*2)+Math.floor(hz*2))%4===0?BI:PI_;           // skull
-      }
+      const hx=C+(x-C)/1.5,hy=50+(y-46)/1.5,hz=7+(z-10.1)/1.5,hax=C+Math.abs(hx-C),dx=hax-C;   // the head is drawn 1.5x
+      // reptile head: long boxy wedge of a snout, jaws hinged wide open, slit eyes on the sides
+      const t=Math.max(0,Math.min(1,(hz-0.6)/8.6));                       // 0 at the snout tip, 1 at the jaw hinge
+      const uw=1.5+2.0*t, uTop=49.4+2.4*t, uBot=47.5+0.4*t;                  // upper jaw / snout box
+      const lw=1.2+1.6*t, lTop=44.2+2.4*t, lBot=lTop-1.6;                    // lower jaw, dropped open
+      const box=(w,top,bot)=>hz>=0.6&&hz<=9.6&&(dx/w)**4+((hy-(top+bot)/2)/((top-bot)/2))**4<=1;
+      const eyeY=51.0-(8.4-hz)*0.32;                                          // slanted: the front end sits lower
+      const e=((dx-3.25)/0.55)**2+((hy-eyeY)/0.42)**2+((hz-8.4)/1.6)**2;
+      const horn=chainT(hax,hy,hz,[[C+2.8,53.4,12.4],[C+5.4,56.4,16.6],[C+6.9,58.2,21.8],[C+6.4,57.8,27.2]],[1.9,1.4,0.9,0.35]);
+      if(e<=1)v=Math.abs(hz-8.4)<1.25&&Math.abs(hy-eyeY)<0.16?BK:SHR;                                       // narrow glowing slit eye
+      else if(cap(hax,hy,hz,[C+4.3,52.5,10.6],[C+2.2,51.9,6.0],0.85,0.55))v=PDS;                              // heavy brow over the eye
+      else if(cap(hax,hy,hz,[C+4.1,52.7,10.2],[C+5.3,54.6,12.6],0.55,0.1)||cap(hax,hy,hz,[C+3.2,52.4,7.8],[C+3.9,54,9.2],0.4,0.1))v=PDS; // brow spikes
+      else if(horn>=0)v=(Math.floor(horn*7)%2)?PDS:KS;                                                      // ridged horns
+      else if(chainT(hax,hy,hz,[[C+3.4,47.2,9.6],[C+6.2,45.6,12.6],[C+7.6,44.2,15.4]],[0.9,0.55,0.2])>=0)v=PDS; // jaw-hinge spikes
+      else if([[C+2.6,52.9,13.4,C+4.6,55.6,16.4],[C+4.2,51.6,13.6,C+6.8,53.2,17]].some(f=>cap(hax,hy,hz,[f[0],f[1],f[2]],[f[3],f[4],f[5]],0.6,0.1)))v=KS; // frill
+      else if([1.8,3.6,5.6].some(zz=>cap(hx,hy,hz,[C,uTop-0.3+(zz-hz)*0,zz],[C,uTop+1.1,zz+0.9],0.45,0.1)&&Math.abs(hz-zz)<1.2))v=PDS; // ridge spikes on the snout
+      else if(cap(hax,hy,hz,[C+uw-0.35,uBot+0.2,2.0],[C+uw-0.35,uBot-3.3,2.0],0.5,0.12)||                     // big upper fangs
+              cap(hax,hy,hz,[C+lw-0.3,lTop-0.2,3.4],[C+lw-0.3,lTop+2.6,3.4],0.42,0.1)||                     // big lower fangs
+              [3.2,4.3,5.4,6.5,7.6].some(zz=>cap(hax,hy,hz,[C+1.5+2.0*((zz-0.6)/8.6)-0.3,47.5+0.4*((zz-0.6)/8.6)+0.1,zz],[C+1.5+2.0*((zz-0.6)/8.6)-0.3,47.5+0.4*((zz-0.6)/8.6)-1.1,zz],0.3,0.08))||
+              [4.6,5.8,7.0].some(zz=>cap(hax,hy,hz,[C+1.2+1.6*((zz-0.6)/8.6)-0.25,44.2+2.4*((zz-0.6)/8.6),zz],[C+1.2+1.6*((zz-0.6)/8.6)-0.25,44.2+2.4*((zz-0.6)/8.6)+0.9,zz],0.26,0.08)))v=QZ; // rows of teeth
+      else if(ell(hax,hy,hz,C+0.8,49.0+0.4,1.0,0.32,0.3,0.4)<=1)v=BK;                                     // nostrils
+      else if(box(uw,uTop,uBot))v=hy<uBot+0.45?PDS:((Math.floor(hz*2)+Math.floor(dx*2))%3===0?BI:PI_);        // upper jaw, dark gum line
+      else if(box(lw,lTop,lBot))v=hy>lTop-0.4?PDS:PI_;                                                        // lower jaw, dark gums
+      else if(hz>=5.5&&hz<=10&&dx<2.2&&hy<uBot&&hy>lTop-0.5&&hy>44)v=hz>8.2?SL:KS;                          // mouth: dark inside, glow deep in the throat
+      else if(ell(hax,hy,hz,C,51.3,11.2,4.4,3.1,4.8)<=1)v=(Math.floor(hy*2)+Math.floor(hz*2))%4===0?BI:PI_;  // flat, long skull
+      else if(ell(hax,hy,hz,C+3.2,48.6,10.2,1.5,2.0,2.6)<=1)v=PI_;                                           // cheek / jaw muscle
     }
     if(!v){
       let q=-1;
@@ -644,7 +651,7 @@ function genDragon(){
 }
 const BUILTIN={
   dragon:{name:'Wicked Ice Dragon',tag:'DRAGON',gen:genDragon,use:'Dragon',front:[0.45,0.18,-1],side:[1,0.15,-0.05],rear:[-0.4,0.3,1],
-    desc:'An ice dragon perched like a statue, legs fused into a rock base and wings folded tight, with the detail in the face: glowing slit eyes under angry brows, an open snarl with interlocking fangs and a glowing throat, swept-back horns, cheek spikes and a spined neck. 120 wide × 126 deep × 198 tall, with the head drawn big so the face reads from far away: ringed slit eyes, brow spikes, rows of teeth against dark gums, chin spikes, a frill and ridged horns. It faces row 1.',
+    desc:'An ice dragon perched like a statue, legs fused into a rock base and wings folded tight, with the detail in the face: a long reptile snout with ridge spikes, narrow slanted slit eyes under a heavy brow, jaws hinged wide open with big upper and lower fangs and rows of teeth, a dark mouth glowing deep in the throat, and ridged horns sweeping back. 120 wide × 126 deep × 198 tall, head drawn big so the face reads from far away. It faces row 1.',
     note:L=>{const l=L/3;return l<=10?'Rock base and the tail curled around the front. Blend this into your mountain.':l<=22?'Haunches, lower wings and the start of the belly plates.':l<=33?'Chest, folded wings with their finger ridges, back spines.':l<=38?'Neck, wing arms, and the bottom of the lower jaw.':l<=45?'Lower jaw with upward fangs, the glowing throat.':l<=50?'Upper jaw, hanging fangs, nostrils, cheek spikes.':l<=57?'Eyes with slit pupils and the angry brow ridges.':'Horns sweeping back.';}},
   caldera:{name:'Frozen Caldera',tag:'CALDERA',gen:genCaldera,use:'Landscape',
     desc:'A ring of icy peaks around a sunken crater, with a frozen blue-ice lake and a small snowy island in the middle. 128 × 128 and up to 56 tall; the inside is hollow when "Skip hidden blocks" is on.',
