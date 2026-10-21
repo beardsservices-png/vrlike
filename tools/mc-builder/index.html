@@ -663,8 +663,22 @@ const BUILTIN={
 
 // ---------- state ----------
 const $=q=>document.getElementById(q);
+// When the page is served by tools/server.js (Railway), builds and progress are also kept on the
+// server so they follow you between devices. Anywhere else this stays off and the browser keeps them.
+let REMOTE=false;
+async function pullRemote(){
+  if(!/^https?:$/.test(location.protocol))return;
+  try{const r=await fetch('/api/kv',{cache:'no-store'});if(!r.ok)return;const d=await r.json();
+    if(!d||d.app!=='mc-tools')return;REMOTE=true;
+    for(const k in d.data){try{localStorage.setItem(k,JSON.stringify(d.data[k]));}catch(e){}}
+  }catch(e){}
+}
+function pushRemote(k,v){if(!REMOTE)return;
+  fetch('/api/kv/'+encodeURIComponent(k),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(v)})
+    .then(r=>{if(!r.ok)$('libinfo').textContent='The server would not save that change. It is still saved in this browser.';})
+    .catch(()=>{$('libinfo').textContent='Could not reach the server. Changes are saved in this browser for now.';});}
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}};
+  set(k,v){pushRemote(k,v);try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return REMOTE;}}};
 const LIBKEY='mc-builds-v1';
 let lib=store.get(LIBKEY,[]);
 let cur=null, codeOf={}, L=1, done=[], rowsDone=new Set();
@@ -941,7 +955,7 @@ $('tvopen').onclick=tvOpen;$('tvexit').onclick=tvClose;
 $('tvnext').onclick=()=>tvStep(1,true);$('tvback').onclick=()=>tvStep(-1,false);$('tvskip').onclick=()=>tvStep(1,false);
 
 // ---------- library ----------
-function saveLib(){if(!store.set(LIBKEY,lib.map(b=>{const c=Object.assign({},b);delete c._tris;return c;}))){$('libinfo').textContent='This browser would not save it (storage full or blocked). It stays until you close the page; delete a build to make room.';return false;}$('libinfo').textContent='Saved in this browser.';return true;}
+function saveLib(){if(!store.set(LIBKEY,lib.map(b=>{const c=Object.assign({},b);delete c._tris;return c;}))){$('libinfo').textContent='This browser would not save it (storage full or blocked). It stays until you close the page; delete a build to make room.';return false;}$('libinfo').textContent=REMOTE?'Saved on your server, so it shows on every device.':'Saved in this browser.';return true;}
 function renderShelf(){
   const sh=$('shelf');sh.innerHTML='';
   const card=(bid,name,thumb,tag)=>{const b=document.createElement('button');b.className='bcard'+(cur&&cur.id===bid?' cur':'');
@@ -1054,8 +1068,13 @@ for(const [sid,dim] of [['sL','L'],['sW','W'],['sH','H']]){
 }
 $('inch').onclick=()=>{$('lock').checked=true;$('sL').value=102;$('sW').value=36;$('sH').value=41;syncLabels();openTacoma(102,36,41);};
 
-init3d();
-openBuild(store.get('mc-current','tacoma'));
+(async function boot(){
+  await pullRemote();
+  lib=store.get(LIBKEY,[]);$('hollow').checked=store.get('tacoma4-hollow',true);
+  if(REMOTE)$('libinfo').textContent='Saved on your server, so it shows on every device.';
+  init3d();
+  openBuild(store.get('mc-current','tacoma'));
+})();
 document.fonts&&document.fonts.ready.then(drawGrid);
 </script>
 </body>
