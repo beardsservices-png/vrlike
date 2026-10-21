@@ -149,13 +149,14 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
 
   <section class="card" aria-label="Size" id="sizecard">
     <div class="gridhead"><h2>Size</h2>
-      <div class="row"><label class="toggle"><input type="checkbox" id="lock" checked> Keep proportions</label><button id="inch">1 block = 2 inches</button></div></div>
+      <div class="row"><label class="toggle"><input type="checkbox" id="lock" checked> Keep proportions</label><button id="inch2">1 block = 2 inches</button><button id="reset" class="primary">Reset (1 block = 1 inch)</button></div></div>
     <div class="sizes">
-      <label class="sz"><span>Length <b id="vL">102</b></span><input type="range" id="sL" min="40" max="222" value="102"></label>
-      <label class="sz"><span>Width <b id="vW">36</b></span><input type="range" id="sW" min="14" max="78" value="36"></label>
-      <label class="sz"><span>Height <b id="vH">41</b></span><input type="range" id="sH" min="16" max="90" value="41"></label>
+      <label class="sz"><span>Length <b id="vL">204</b></span><input type="range" id="sL" min="40" max="222" value="204"></label>
+      <label class="sz"><span>Width <b id="vW">72</b></span><input type="range" id="sW" min="14" max="78" value="72"></label>
+      <label class="sz"><span>Height <b id="vH">83</b></span><input type="range" id="sH" min="16" max="90" value="83"></label>
     </div>
-    <div class="cellinfo" id="sizeinfo">Drag a slider and let go to rebuild. Full blocks only, no stairs or slabs.</div>
+    <label class="toggle"><input type="checkbox" id="detail" checked> Detail blocks: stairs and slabs on the edges, button lug nuts and handles, lights that really glow, antenna, chain coil-overs</label>
+    <div class="cellinfo" id="sizeinfo">Drag a slider and let go to rebuild.</div>
   </section>
 
   <section class="card" aria-label="Picture settings" id="piccard" hidden>
@@ -291,7 +292,7 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
 // ---------- block catalog: index = voxel value ----------
 const CAT=[null], CATIDX={};
 function addBlock(name,c,ex){ex=ex||{};
-  if(CATIDX[name]){if(ex.m)CAT[CATIDX[name]].m=ex.m;return CATIDX[name];}
+  if(CATIDX[name]){Object.assign(CAT[CATIDX[name]],ex);return CATIDX[name];}
   CAT.push(Object.assign({name,c,m:c},ex));return CATIDX[name]=CAT.length-1;}
 const B=addBlock('Black Concrete','#24272d',{m:'#080a0f',use:'Body, hood, doors, roof, fender flares, mirrors, wheel tubs'});
 const T=addBlock('Black Wool','#34353b',{m:'#141519',use:'Tires'});
@@ -323,6 +324,22 @@ const otherIdx=OTHER.map(([n,c])=>addBlock(n,c,{m:c}));
 const BI=addBlock('Blue Ice','#74a8fd'),GRV=addBlock('Gravel','#837f7e'),SBR=addBlock('Stone Bricks','#7a7a7a'),COB=addBlock('Cobblestone','#7f7f7f'),
   GLS=addBlock('Glowstone','#e3c27a',{m:'#aa8f55'}),GLA=addBlock('Glass','#c9e4e8',{glass:.35}),
   SHR=addBlock('Shroomlight','#f19e46'),PDS=addBlock('Polished Deepslate','#4a4a4f');
+// detail blocks (only with "Detail blocks" on). shape = how they draw in 3D; hand = no /fill command, place by hand.
+const ZD={};
+for(const [k,dir] of [['f','front'],['b','back'],['p','passenger side'],['d','driver side']])
+  ZD[k]=addBlock(`Blackstone Stairs, tall side to the ${dir}`,'#1f1b24',{m:'#2a2328',shape:'stair'+k,hand:1,use:'Softened top edges of the body'});
+const ZS=addBlock('Blackstone Slab (bottom half)','#1f1b24',{m:'#2a2328',shape:'slab',hand:1,use:'Softened corners of the body'});
+const NUT=addBlock('Stone Button','#9a9a9a',{shape:'button',hand:1,use:'Lug nuts'});
+const HDL=addBlock('Polished Blackstone Button','#3d3c41',{shape:'button',hand:1,use:'Door handles'});
+const LMP=addBlock('Redstone Lamp','#f4c76a',{m:'#a0693b',glow:1,use:'Headlights, tail lights and brake light that really light up'});
+const RSB=addBlock('Redstone Block','#af1805',{keep:1,use:'Hidden behind each lamp to keep it lit'});
+const RGL=addBlock('Red Stained Glass','#c0392b',{glass:.6,use:'Tail light and brake light lenses'});
+const BAR_=addBlock('Iron Bars','#b9bcbf',{shape:'thin',hand:1,use:'Antenna'});
+const CHN=addBlock('Chain','#4a4f57',{shape:'thin',hand:1,use:'Coil-over shocks in the wheel wells'});
+const WHT=CATIDX['White Concrete'];
+Object.assign(TACODE,{[ZD.f]:'Zf',[ZD.b]:'Zb',[ZD.p]:'Zp',[ZD.d]:'Zd',[ZS]:'Zs',[NUT]:'n',[HDL]:'h',[LMP]:'L',[RSB]:'X',[RGL]:'Rg',[BAR_]:'|',[CHN]:'C',[WHT]:'Wh'});
+CAT[WHT].use='Rear license plate';
+for(const g of ['Sea Lantern','Glowstone','Shroomlight'])CAT[CATIDX[g]].glow=1;
 const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
 
 // ---------- the truck, as a shape sampled at 4 blocks per unit ----------
@@ -371,6 +388,8 @@ function classify(x,y,z){
       if(Math.hypot(x-(cx+1.3),az-3.3)<0.32&&y>=3.5)return G;}
     if(x>8.5&&x<29.5&&Math.hypot(y-3.7,c)<0.3)return G;
   }
+  if(x>=35&&x<37&&y>=3.55&&y<4&&az<0.35)return G;                         // hitch receiver
+  if(x>=33&&x<36.4&&Math.hypot(y-4.1,c+3.6)<0.22)return G;                  // exhaust tip, passenger side
   // mirrors, running boards, fender flares, wheel wells
   if(x>=14.2&&x<15.4&&y>=10.8&&y<12.2&&az>=5.3)return B;
   if(x>=14.6&&x<15.1&&y>=10.5&&y<11&&az>=4.8&&az<5.5)return B;
@@ -410,6 +429,7 @@ function classify(x,y,z){
     if(y<5.25)return S_;
     if(y>=7.2&&y<10.2&&az>=4.1&&(x>=36.75||side))return(y>=8.2&&y<8.7)?H:R;
     if(x>=37-TB/2&&y>=9.4&&y<9.9&&az<0.8)return P;
+    if(x>=37-TB/2&&y>=5.35&&y<6.55&&az<1.15)return(y<5.5||y>=6.4||az>=1.0)?K:WHT;   // rear license plate
   }
   // door seams, handles, badge
   if(side&&y>=5.5&&y<10.4){
@@ -417,13 +437,17 @@ function classify(x,y,z){
     if(y>=9.5&&y<9.8&&((x>=17.2&&x<18)||(x>=22.6&&x<23.4)))return P;
     if(x>=10.5&&x<12.5&&y>=8.5&&y<8.75)return Q;
     if(x>=32.6&&x<35.4&&y>=8.55&&y<9.35)return Math.floor(x*SX)%4===3?B:Q;
+    if(c>0&&x>=27.6&&x<28.9&&y>=8.0&&y<9.2&&(x<27.75||x>=28.75||y<8.15||y>=9.05))return K;   // fuel door
   }
   // cab: windshield, side glass, pillars, rear glass, interior
   if(inCab){
     if(y>10.45){const rt=roof(x);
       if(y>rt-TH)return B;
-      if(x<xs(y)+TH)return(az<h-TH-0.15&&y<rt-TH-0.15)?W:B;
-      if(x>=24.9-TH)return(y>=11&&y<14.2&&az<2.6)?W:B;
+      if(x<xs(y)+TH){if(y<10.72&&az>0.45&&az<4.1&&az<h-TH-0.15)return K;            // wiper arms
+        return(az<h-TH-0.15&&y<rt-TH-0.15)?W:B;}
+      if(x>=24.9-TH){if(y>=14.2&&az<0.9)return R;                                      // third brake light
+        if(y>=11&&y<14.2&&az<2.6)return Math.abs(az-0.9)<0.12?K:W;                     // sliding rear window
+        return B;}
       if(side)return(y>=10.75&&y<rt-0.4&&((x>=xs(y)+0.65&&x<19.2)||(x>=19.9&&x<24.3)))?W:B;
     }
     if(x>=13.6&&x<24.9-TH&&y>5.75&&!side)return interior(x,y,c,az);
@@ -443,16 +467,52 @@ function classify(x,y,z){
 
 const id=(i,j,k)=>(j*Z+k)*X+i;
 const isGlass=v=>v&&CAT[v].glass;
-const solidAt=(i,j,k)=>{if(i<0||j<0||k<0||i>=X||j>=Y||k>=Z)return false;const v=vox[id(i,j,k)];return v&&!isGlass(v);};
+const solidAt=(i,j,k)=>{if(i<0||j<0||k<0||i>=X||j>=Y||k>=Z)return false;const v=vox[id(i,j,k)];return v&&!isGlass(v)&&!CAT[v].shape;};
 function computeExposed(){
   exposed=new Uint8Array(N);
   for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const n=id(i,j,k);if(!vox[n])continue;
     exposed[n]=!(solidAt(i+1,j,k)&&solidAt(i-1,j,k)&&solidAt(i,j+1,k)&&solidAt(i,j-1,k)&&solidAt(i,j,k+1)&&solidAt(i,j,k-1))?1:0;}
 }
+function detailTacoma(){
+  const at=(i,j,k)=>(i<0||j<0||k<0||i>=X||j>=Y||k>=Z)?-1:vox[id(i,j,k)];
+  const put=(i,j,k,v)=>{if(i>=0&&j>=0&&k>=0&&i<X&&j<Y&&k<Z)vox[id(i,j,k)]=v;};
+  const I_=x=>Math.floor(x*SX),J_=y=>Math.floor(y*SY),K_=z=>Math.floor(z*SZ);
+  // stairs and slabs soften every top edge of the black body
+  const edits=[];
+  for(let j=1;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){
+    if(vox[id(i,j,k)]!==B||at(i,j+1,k)>0)continue;
+    if(!(at(i,j-1,k)>0))continue;
+    const op={f:at(i-1,j,k)===0,b:at(i+1,j,k)===0,p:at(i,j,k-1)===0,d:at(i,j,k+1)===0};
+    const n=op.f+op.b+op.p+op.d;
+    if(n===1){const o=op.f?'f':op.b?'b':op.p?'p':'d';edits.push([i,j,k,ZD[{f:'b',b:'f',p:'d',d:'p'}[o]]]);}
+    else if(n===2&&!(op.f&&op.b)&&!(op.p&&op.d))edits.push([i,j,k,ZS]);
+  }
+  for(const [i,j,k,v] of edits)put(i,j,k,v);
+  // lug nuts: five stone buttons round each hub, on both outer wheel faces
+  for(const cx of WHEELS)for(let q=0;q<5;q++){const a=Math.PI/2+q*2*Math.PI/5,i=I_(cx+Math.cos(a)*0.72),j=J_(WY+Math.sin(a)*0.72);
+    put(i,j,0,NUT);put(i,j,Z-1,NUT);}
+  // door handles: buttons on the outer face
+  for(let j=J_(9.5);j<=J_(9.8);j++)for(const [x0,x1] of [[17.2,18],[22.6,23.4]])for(let i=I_(x0);i<I_(x1);i++)
+    for(const k of [0,Z-1]){const dir=k?-1:1;let kk=k;while(kk>=0&&kk<Z&&at(i,j,kk)===0)kk+=dir;if(at(i,j,kk)===P)put(i,j,kk,HDL);}
+  // headlights glow: a redstone lamp right behind each lens, a redstone block behind that
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=1;i<I_(1.6);i++){
+    if(at(i,j,k)!==H||at(i-1,j,k)!==0)continue;let ii=i;while(at(ii,j,k)===H)ii++;
+    if(at(ii,j,k)===B){put(ii,j,k,LMP);if(at(ii+1,j,k)===B)put(ii+1,j,k,RSB);}}
+  // tail lights and the third brake light: red glass lens, lamp, redstone block
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=X-1;i>0;i--){
+    if(at(i,j,k)!==R)continue;if(at(i+1,j,k)!==0&&at(i+1,j,k)!==-1)continue;
+    put(i,j,k,RGL);if(at(i-1,j,k)===R||at(i-1,j,k)===B){put(i-1,j,k,LMP);const b=at(i-2,j,k);if(b===B||b===R||b===0)put(i-2,j,k,RSB);}}
+  // antenna: iron bars up from the driver-side cowl
+  {const i=I_(13.4),k=K_(11.6);let j=Y-1;while(j>0&&!(at(i,j,k)>0))j--;for(let h=1;h<=Math.round(4.4*SY)&&j+h<Y;h++)if(at(i,j+h,k)===0)put(i,j+h,k,BAR_);}
+  // coil-over shocks become chain
+  for(const cx of WHEELS)for(const zc of [6.5-3.3,6.5+3.3]){const i=I_(cx+1.3),k=K_(zc);
+    for(let j=J_(3.5);j<J_(5);j++){for(let di=-2;di<=2;di++)for(let dk=-2;dk<=2;dk++)if(at(i+di,j,k+dk)===G)put(i+di,j,k+dk,0);if(at(i,j,k)===0)put(i,j,k,CHN);}}
+}
 function voxelTacoma(lx,wz,hy){
   X=lx;Z=wz;Y=hy;SX=X/37;SZ=Z/13;SY=Y/15;const sm=Math.min(SX,SY,SZ);TH=Math.max(.3,1.05/sm);TB=Math.max(.5,1.05/sm);
   N=X*Y*Z;vox=new Uint8Array(N);
   for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++)vox[id(i,j,k)]=classify((i+.5)/SX,(j+.5)/SY,(k+.5)/SZ);
+  if($('detail').checked)detailTacoma();
   computeExposed();
 }
 
@@ -684,7 +744,7 @@ let lib=store.get(LIBKEY,[]);
 let cur=null, codeOf={}, L=1, done=[], rowsDone=new Set();
 const buildKey=()=>cur.id+':'+X+'x'+Z+'x'+Y;
 $('hollow').checked=store.get('tacoma4-hollow',true);
-const keep=n=>!$('hollow').checked||exposed[n];
+const keep=n=>!$('hollow').checked||exposed[n]||(vox[n]&&CAT[vox[n]].keep);
 const nameOf=v=>CAT[v].name;
 function counts(j){const c={};const j0=j===undefined?0:j,j1=j===undefined?Y-1:j;
   for(let jj=j0;jj<=j1;jj++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const n=id(i,jj,k),v=vox[n];if(v&&keep(n))c[v]=(c[v]||0)+1;}
@@ -748,7 +808,7 @@ function showAnchorInfo(){
 }
 const IDFIX={'Lapis Lazuli Block':'lapis_block','Snow Block':'snow','Terracotta':'hardened_clay','Nether Bricks':'nether_brick','Bricks':'brick_block'};
 const bid=v=>IDFIX[CAT[v].name]||CAT[v].name.toLowerCase().replace(/ /g,'_');
-function fillCmd(j,k,r){const a=world(r.s,j,k);if(!a)return'';const b=world(r.e,j,k);
+function fillCmd(j,k,r){const a=world(r.s,j,k);if(!a||CAT[r.v].hand)return'';const b=world(r.e,j,k);
   return r.s===r.e?`/setblock ${a.x} ${a.y} ${a.z} ${bid(r.v)}`:`/fill ${a.x} ${a.y} ${a.z} ${b.x} ${b.y} ${b.z} ${bid(r.v)}`;}
 function runXYZ(j,k,s,e){const a=world(s,j,k);if(!a)return'';const b=world(e,j,k);
   return s===e?`${a.x} ${a.y} ${a.z}`:`${a.x} ${a.y} ${a.z} → ${b.x} ${b.y} ${b.z}`;}
@@ -779,10 +839,17 @@ function buildMeshes(){
   for(const o of dyn){scene.remove(o);o.geometry.dispose();o.material.dispose();}
   dyn=[];meshes={};
   const box=new THREE.BoxGeometry(1,1,1);const totals={};let ex=0;
+  const bx=(w,h,d,tx,ty,tz)=>{const g=new THREE.BoxGeometry(w,h,d).toNonIndexed();g.translate(tx,ty,tz);return g;};
+  const merge=gs=>{const pos=[],nor=[];for(const g of gs){pos.push(...g.attributes.position.array);nor.push(...g.attributes.normal.array);}
+    const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));m.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));return m;};
+  const SH={slab:bx(1,.5,1,0,-.25,0),button:bx(.4,.4,.4,0,0,0),thin:bx(.22,1,.22,0,0,0),
+    stairf:merge([bx(1,.5,1,0,-.25,0),bx(.5,.5,1,-.25,.25,0)]),stairb:merge([bx(1,.5,1,0,-.25,0),bx(.5,.5,1,.25,.25,0)]),
+    stairp:merge([bx(1,.5,1,0,-.25,0),bx(1,.5,.5,0,.25,-.25)]),staird:merge([bx(1,.5,1,0,-.25,0),bx(1,.5,.5,0,.25,.25)])};
   for(let n=0;n<N;n++)if(vox[n]){totals[vox[n]]=(totals[vox[n]]||0)+1;if(exposed[n])ex++;}
   for(const v in totals){const bl=CAT[v];
-    const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:!!bl.glass,opacity:bl.glass||1,depthWrite:!bl.glass});
-    const mesh=new THREE.InstancedMesh(box,m,totals[v]);mesh.count=0;mesh.frustumCulled=false;
+    const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:!!bl.glass,opacity:bl.glass||1,depthWrite:!bl.glass,
+      emissive:bl.glow?new THREE.Color(bl.c).multiplyScalar(.55):0x000000});
+    const mesh=new THREE.InstancedMesh(SH[bl.shape]||box,m,totals[v]);mesh.count=0;mesh.frustumCulled=false;
     mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(totals[v]*3),3);
     if(bl.glass)mesh.renderOrder=2;meshes[v]=mesh;scene.add(mesh);dyn.push(mesh);}
   ghostMesh=new THREE.InstancedMesh(box,new THREE.MeshBasicMaterial({color:0x2a2e34,transparent:true,opacity:.07,depthWrite:false}),Math.max(1,ex));
@@ -938,7 +1005,7 @@ function tvDraw(){
   c.fillStyle=css('--muted');c.font='600 12px "IBM Plex Mono", monospace';c.textAlign='left';c.textBaseline='top';
   for(const r of runs)c.fillText(r.s+1,(r.s-s0)*cs+2,2);
   $('tvruns').innerHTML=runs.map(r=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
-    return `<li><i style="background:${bl.c}"></i><span class="ct">${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)}</span><span><b>${len}</b> × ${bl.name}</span>${xyz?`<span class="xyz">${fillCmd(j,k,r)}</span><button class="copy tvbtn" data-t="${fillCmd(j,k,r)}">Copy</button>`:''}</li>`;}).join('');
+    return `<li><i style="background:${bl.c}"></i><span class="ct">${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)}</span><span><b>${len}</b> × ${bl.name}</span>${xyz?(CAT[r.v].hand?`<span class="xyz">${xyz} · place by hand</span>`:`<span class="xyz">${fillCmd(j,k,r)}</span><button class="copy tvbtn" data-t="${fillCmd(j,k,r)}">Copy</button>`):''}</li>`;}).join('');
   // layer map
   const mc=$('tvmap'),m=mc.getContext('2d'),ms=Math.max(2,Math.min(8,Math.floor(Math.min(520,window.innerWidth-40)/X))),MW=X*ms,MH=Z*ms;
   mc.width=MW*dpr;mc.height=MH*dpr;mc.style.width=MW+'px';mc.style.height=MH+'px';m.setTransform(dpr,0,0,dpr,0,0);
@@ -995,7 +1062,7 @@ async function onModel(f){
 }
 function setDesc(){
   if(cur.kind==='gen'){$('bname').textContent=cur.name;$('bdesc').textContent=BUILTIN[cur.id].desc;return;}
-  if(cur.kind==='tacoma'){$('bname').textContent='Lifted Tacoma';$('bdesc').textContent='Your black double-cab Tacoma with the lift, chrome bull bar with LED light bar, hard bed cover, flared fenders and black off-road wheels, in full blocks at any size you pick.';}
+  if(cur.kind==='tacoma'){$('bname').textContent='Lifted Tacoma';$('bdesc').textContent='Your black double-cab Tacoma: lift, chrome bull bar with LED light bar, hard bed cover, flared fenders, black off-road wheels. Defaults to 1 block = 1 inch; turn on detail blocks for stairs, slabs, buttons and lights that really glow.';}
   else if(cur.kind==='model'){$('bname').textContent=cur.name;$('bdesc').textContent=`Your 3D drawing at 1 block = ${scaleLabel(cur.scale)}: ${X} × ${Z} blocks and ${Y} tall, about ${fmtIn(X*cur.scale)} × ${fmtIn(Z*cur.scale)} × ${fmtIn(Y*cur.scale)} in real life.`;}
   else{$('bname').textContent=cur.name;$('bdesc').textContent=`Your picture as ${cur.orient==='flat'?'a floor':'a wall'} of full blocks, ${X} wide × ${cur.orient==='flat'?Z:Y} tall${(cur.orient==='flat'?Y:Z)>1?', '+(cur.orient==='flat'?Y:Z)+' thick':''}.`;}
 }
@@ -1006,8 +1073,9 @@ function afterLoad(){
 function openTacoma(lx,wz,hy){
   $('sizeinfo').textContent='Building…';
   setTimeout(()=>{voxelTacoma(lx,wz,hy);afterLoad();
-    $('sizeinfo').textContent=`${X} long × ${Z} wide × ${Y} tall, about ${(518/X).toFixed(1)} cm (${(204/X).toFixed(1)} in) per block. Full blocks only, no stairs or slabs.`;
-    store.set('tacoma-size2',[X,Z,Y]);},20);
+    $('sizeinfo').textContent=`${X} long × ${Z} wide × ${Y} tall, about ${(518/X).toFixed(1)} cm (${(204/X).toFixed(1)} in) per block. `+
+      ($('detail').checked?'Detail blocks on: stairs, slabs, buttons and lamps are placed by hand (TV mode says which way they face).':'Full blocks only, no stairs or slabs.');
+    store.set('tacoma-size3',[X,Z,Y]);},20);
 }
 function openModel(b){
   $('modelinfo').textContent='Building…';
@@ -1030,7 +1098,7 @@ function openBuild(bid){
   $('sizecard').hidden=cur.kind!=='tacoma';$('piccard').hidden=cur.kind!=='picture';$('modelcard').hidden=cur.kind!=='model';
   resetDel();
   if(cur.kind==='model'){$('mname').value=cur.name;$('mscale').value=String(cur.scale);$('mblock').value=cur.block;openModel(cur);return;}
-  if(cur.kind==='tacoma'){const s=store.get('tacoma-size2',[102,36,41]);$('sL').value=s[0];$('sW').value=s[1];$('sH').value=s[2];syncLabels();openTacoma(s[0],s[1],s[2]);}
+  if(cur.kind==='tacoma'){const s=store.get('tacoma-size3',[204,72,83]);$('sL').value=s[0];$('sW').value=s[1];$('sH').value=s[2];syncLabels();openTacoma(s[0],s[1],s[2]);}
   else{$('pname').value=cur.name;$('pw').value=cur.w;$('pt').value=cur.t;$('por').value=cur.orient;$('ppal').value=cur.pal;$('pbg').checked=!!cur.bg;
     getImg(cur.img).then(im=>{$('pw').max=Math.min(256,Math.max(64,im.naturalWidth));picLabels(im);}).catch(()=>{});
     openPicture(cur);}
@@ -1066,7 +1134,11 @@ for(const [sid,dim] of [['sL','L'],['sW','W'],['sH','H']]){
     syncLabels();});
   el.addEventListener('change',()=>openTacoma(+$('sL').value,+$('sW').value,+$('sH').value));
 }
-$('inch').onclick=()=>{$('lock').checked=true;$('sL').value=102;$('sW').value=36;$('sH').value=41;syncLabels();openTacoma(102,36,41);};
+const setSize=(l,w,h)=>{$('lock').checked=true;$('sL').value=l;$('sW').value=w;$('sH').value=h;syncLabels();openTacoma(l,w,h);};
+$('reset').onclick=()=>setSize(204,72,83);
+$('inch2').onclick=()=>setSize(102,36,41);
+$('detail').checked=store.get('tacoma-detail',true);
+$('detail').onchange=()=>{store.set('tacoma-detail',$('detail').checked);if(cur&&cur.kind==='tacoma')openTacoma(+$('sL').value,+$('sW').value,+$('sH').value);};
 
 (async function boot(){
   await pullRemote();
