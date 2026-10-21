@@ -1,0 +1,8 @@
+{
+  "name": "vrlike",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Handspace and Brian's Minecraft tools, served by a zero-dependency Node server",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

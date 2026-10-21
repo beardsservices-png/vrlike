@@ -4,8 +4,8 @@ A hand-tracked musical instrument that runs in a browser with nothing but a webc
 No headset, no install. The screen behaves like a window into a small room; you reach
 into it to hit pads and pinch out notes.
 
-Buildless — plain ES modules and an import map. No bundler, no npm install, no server
-code. Deploys as static files.
+Buildless — plain ES modules and an import map. No bundler, no npm install. Runs as static
+files, or with the small `server.js` on Railway (see Deploying).
 
 ## Run it
 
@@ -157,6 +157,21 @@ camera frames stay on the machine. Static hosting; deploys to Cloudflare Pages a
 This is the hands-mode front end for BHS Studio. When the DAW work resumes, Handspace
 becomes an input surface that writes into the studio's timeline rather than its own
 standalone loop.
+
+## Deploying on Railway
+
+`server.js` (zero dependencies) serves everything in this folder and keeps the Minecraft
+build planner's saved builds and progress in one JSON file, so they follow you between
+devices. Railway reads `railway.json` and runs `node server.js`; health check `/api/health`.
+
+1. New service from this repo (deploys on every push to `main`).
+2. Add a volume, mount path `/data`.
+3. One variable: `DATA_DIR=/data`. (`PORT` comes from Railway; do not set it.)
+4. Generate a domain. Pages: `/` Handspace, `/mc` the build planner,
+   `/tools/mc-commands/` the command guide, `/tools/mc-track-plotter/` the plotter.
+
+Anyone with the address can open the pages and change the saved builds; there is no login.
+Locally `node server.js` works too (data goes in `./.data`); `start.bat` still works as before.
 
 ## Other tools in this repo
 
