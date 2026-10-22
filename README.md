@@ -181,7 +181,9 @@ Locally `node server.js` works too (data goes in `./.data`); `start.bat` still w
   `/setblock` commands. Open `tools/mc-track-plotter/index.html` in any browser (no
   server needed; three.js loads from cdnjs). Projects save in that browser's local storage.
 - **`tools/mc-builder/`**: Minecraft build planner, full blocks only. Built in: Brian's
-  lifted Tacoma (Plotz-style size sliders; default 1 block = 2 in, 102 x 36 x 41). Also
+  lifted Tacoma (Plotz-style size sliders with Reset; default 1 block = 1 in, 204 x 72 x 83;
+  optional detail blocks: stair/slab edges, button lug nuts and handles, redstone-lamp lights
+  kept lit by hidden redstone blocks, iron-bar antenna, chain coil-overs). Also
   turns any picture into a block build (saved in that browser). 3D view, a grid per layer,
   row-by-row runs, TV build mode (one row at a time), and a starting block: enter its
   in-game X/Y/Z and every run gets a ready `/fill` command. Also reads STL/OBJ exports from Draft Studio
