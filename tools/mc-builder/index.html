@@ -88,6 +88,12 @@ th.num{text-align:right}
 .runs .rn{font-family:var(--mono);font-weight:600;flex:none;width:7ch;white-space:nowrap}
 .runs .rs{display:flex;flex-wrap:wrap;gap:4px 10px;min-width:0}
 .runs .r1{display:inline-flex;gap:5px;align-items:center;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.runs .gap{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:3px;padding:0 5px}
+.tvruns li.tvgap{background:transparent;border-style:dashed;color:var(--muted);font-size:clamp(15px,1.8vw,22px);padding:4px 14px}
+.dimrow{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.dimrow select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--cell);color:var(--fg)}
+.diminfo{font-family:var(--mono);font-size:13px;color:var(--fg);font-variant-numeric:tabular-nums;min-width:0}
+.diminfo b{color:var(--accent)}
 .runs .r1 i{width:12px;height:12px;border-radius:2px;border:1px solid rgba(127,127,127,.4);flex:none}
 .layers{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px}
 .layers button{font-family:var(--mono);font-size:12px;padding:3px 0}
@@ -155,7 +161,7 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
       <label class="sz"><span>Width <b id="vW">72</b></span><input type="range" id="sW" min="14" max="78" value="72"></label>
       <label class="sz"><span>Height <b id="vH">83</b></span><input type="range" id="sH" min="16" max="90" value="83"></label>
     </div>
-    <label class="toggle"><input type="checkbox" id="detail" checked> Detail blocks: stairs and slabs on the edges, button lug nuts and handles, lights that really glow, antenna, chain coil-overs</label>
+    <label class="toggle"><input type="checkbox" id="detail" checked> Detail blocks: stairs and slabs on the edges, button lug nuts and handles, lights on a lever in the cab, antenna, chain coil-overs</label>
     <div class="cellinfo" id="sizeinfo">Drag a slider and let go to rebuild.</div>
   </section>
 
@@ -243,7 +249,10 @@ details.counts summary{cursor:pointer;font-family:var(--display);font-size:22px}
       </div>
     </div>
     <div class="gridbox" id="gridbox"><canvas id="grid"></canvas></div>
-    <div class="cellinfo" id="cellinfo">Hover or tap a square to see its block and position. Zoom in to see block letters.</div>
+    <div class="dimrow"><label class="toggle" style="padding:0;border:0">Measure <select id="dimsel" aria-label="Measure which blocks"><option value="">all blocks</option></select></label>
+      <span class="diminfo" id="diminfo"></span></div>
+    <div class="cellinfo" id="cellinfo">Tap two squares to measure between them. Hover or tap to see a block and its position.</div>
+    <div class="dimrow"><span class="diminfo" id="measinfo"></span><button id="measclear" hidden>Clear measurement</button></div>
     <details class="runs" id="runsbox" open><summary>Row by row, for this layer</summary><ol id="runs"></ol></details>
   </section>
 
@@ -336,8 +345,13 @@ const RSB=addBlock('Redstone Block','#af1805',{keep:1,use:'Hidden behind each la
 const RGL=addBlock('Red Stained Glass','#c0392b',{glass:.6,use:'Tail light and brake light lenses'});
 const BAR_=addBlock('Iron Bars','#b9bcbf',{shape:'thin',hand:1,use:'Antenna'});
 const CHN=addBlock('Chain','#4a4f57',{shape:'thin',hand:1,use:'Coil-over shocks in the wheel wells'});
+const LEV=addBlock('Lever','#7a6a55',{shape:'thin',hand:1,use:'Light switch, on the cab side of the firewall'});
+const DUST=addBlock('Redstone Dust','#c4221b',{shape:'dust',hand:1,use:'Wire from the lever to the lights'});
+const REP={};
+for(const [k,dir] of [['f','front'],['b','back'],['p','passenger side'],['d','driver side']])
+  REP[k]=addBlock(`Redstone Repeater, arrow toward the ${dir}`,'#9b8f8f',{shape:'rep',hand:1,use:'Boosts the wire every 15 blocks'});
 const WHT=CATIDX['White Concrete'];
-Object.assign(TACODE,{[ZD.f]:'Zf',[ZD.b]:'Zb',[ZD.p]:'Zp',[ZD.d]:'Zd',[ZS]:'Zs',[NUT]:'n',[HDL]:'h',[LMP]:'L',[RSB]:'X',[RGL]:'Rg',[BAR_]:'|',[CHN]:'C',[WHT]:'Wh'});
+Object.assign(TACODE,{[LEV]:'Lv',[DUST]:'rd',[REP.f]:'>f',[REP.b]:'>b',[REP.p]:'>p',[REP.d]:'>d',[ZD.f]:'Zf',[ZD.b]:'Zb',[ZD.p]:'Zp',[ZD.d]:'Zd',[ZS]:'Zs',[NUT]:'n',[HDL]:'h',[LMP]:'L',[RSB]:'X',[RGL]:'Rg',[BAR_]:'|',[CHN]:'C',[WHT]:'Wh'});
 CAT[WHT].use='Rear license plate';
 for(const g of ['Sea Lantern','Glowstone','Shroomlight'])CAT[CATIDX[g]].glow=1;
 const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
@@ -494,14 +508,49 @@ function detailTacoma(){
   // door handles: buttons on the outer face
   for(let j=J_(9.5);j<=J_(9.8);j++)for(const [x0,x1] of [[17.2,18],[22.6,23.4]])for(let i=I_(x0);i<I_(x1);i++)
     for(const k of [0,Z-1]){const dir=k?-1:1;let kk=k;while(kk>=0&&kk<Z&&at(i,j,kk)===0)kk+=dir;if(at(i,j,kk)===P)put(i,j,kk,HDL);}
-  // headlights glow: a redstone lamp right behind each lens, a redstone block behind that
-  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=1;i<I_(1.6);i++){
-    if(at(i,j,k)!==H||at(i-1,j,k)!==0)continue;let ii=i;while(at(ii,j,k)===H)ii++;
-    if(at(ii,j,k)===B){put(ii,j,k,LMP);if(at(ii+1,j,k)===B)put(ii+1,j,k,RSB);}}
-  // tail lights and the third brake light: red glass lens, lamp, redstone block
-  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=X-1;i>0;i--){
-    if(at(i,j,k)!==R)continue;if(at(i+1,j,k)!==0&&at(i+1,j,k)!==-1)continue;
-    put(i,j,k,RGL);if(at(i-1,j,k)===R||at(i-1,j,k)===B){put(i-1,j,k,LMP);const b=at(i-2,j,k);if(b===B||b===R||b===0)put(i-2,j,k,RSB);}}
+  // ---- lights on a lever: lever in the cab, redstone dust and repeaters to the headlights and tail lights ----
+  const solid=v=>v>0&&!CAT[v].glass&&!CAT[v].shape;
+  const support=(i,j,k)=>{if(!solid(at(i,j-1,k)))put(i,j-1,k,B);};
+  // headlights: clear glass lens (the chrome projector moves behind it), chrome reflector behind, a glowing plus in the middle
+  const iLp=I_(1.5),jh=J_(8.85),kHP=K_(6.5-4.1),kHD=K_(6.5+4.1);
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<iLp;i++)if(at(i,j,k)===I&&Math.hypot(Math.abs(k+.5-Z/2)/SZ-4.1,(j+.5)/SY-8.85)<0.6)put(i,j,k,H);
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++){if(at(iLp-1,j,k)===H&&solid(at(iLp,j,k)))put(iLp,j,k,I);}
+  for(const kc of [kHP,kHD]){put(iLp,jh,kc,I);for(const [dj,dk] of [[1,0],[-1,0],[0,1],[0,-1]])put(iLp,jh+dj,kc+dk,LMP);}
+  // tail lights: red glass lens, red behind it, a glowing plus in the middle
+  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)if(at(X-1,j,k)===R)put(X-1,j,k,RGL);
+  const iTp=X-2,jt=J_(9.45),kTP=K_(6.5-4.8),kTD=K_(6.5+4.8);
+  for(const kc of [kTP,kTD]){put(iTp,jt,kc,R);for(const [dj,dk] of [[1,0],[-1,0],[0,1],[0,-1]])put(iTp,jt+dj,kc+dk,LMP);}
+  // wiring: each route is a list of cells from its power source; repeaters go in every 15 blocks on flat stretches
+  const DIRK={'-1,0':'f','1,0':'b','0,-1':'p','0,1':'d'};
+  function lay(cells,s0){let st=s0;
+    for(let q=0;q<cells.length;q++){const [i,j,k]=cells[q];if(q>0)st--;
+      const pv=cells[q-1],nx=cells[q+1];
+      const flat=pv&&nx&&pv[1]===j&&nx[1]===j&&(pv[0]===i||pv[2]===k)&&(nx[0]===i||nx[2]===k)&&(pv[0]-i===i-nx[0])&&(pv[2]-k===k-nx[2]);
+      if(st<=4&&flat){put(i,j,k,REP[DIRK[(nx[0]-i)+','+(nx[2]-k)]]);st=16;}
+      else put(i,j,k,DUST);
+      support(i,j,k);
+      if(nx&&nx[1]>j)put(i,j+1,k,0);               // room for the wire to climb a step
+    }
+    return st;}
+  function run(c,di,dj,dk,n){const out=[];let [i,j,k]=c;for(let t=0;t<n;t++){i+=di;j+=dj;k+=dk;out.push([i,j,k]);}return out;}
+  function climb(c,di,n){const out=[];let [i,j,k]=c;let done=0;    // up one block per block across, with a 3-block landing every 9 steps
+    while(done<n){const st=Math.min(9,n-done);for(let t=0;t<st;t++){i+=di;j+=1;out.push([i,j,k]);}done+=st;if(done<n)for(let t=0;t<3;t++){i+=di;out.push([i,j,k]);}}
+    return out;}
+  const last=a=>a[a.length-1];
+  const iL=I_(13.6),jL=J_(5.75)+1,kL=K_(6.5);
+  put(iL-1,jL,kL,B);put(iL,jL,kL,LEV);                                     // lever on the firewall, center of the dash, at floor level
+  // to the headlights
+  let A=[[iL-2,jL,kL]];A=A.concat(climb(last(A),-1,jh-jL));
+  const iC=iLp+2;A=A.concat(run(last(A),-1,0,0,last(A)[0]-iC));
+  let sJ=lay(A,15);
+  for(const kc of [kHP,kHD]){const dk=Math.sign(kc-kL);const Bc=run(last(A),0,0,dk,Math.abs(kc-kL)).concat([[iC-1,jh,kc]]);lay(Bc,sJ);}
+  // to the tail lights: along the cab floor, through the back wall, along the bed floor, up to the tail lights
+  const iX=X-3;let R_=[[iL+1,jL,kL]];
+  const climbN=jt-jL,climbLen=climbN+Math.floor((climbN-1)/9)*3;
+  R_=R_.concat(run(last(R_),1,0,0,(iX-1-climbLen)-(iL+1)));R_=R_.concat(climb(last(R_),1,climbN));
+  if(last(R_)[0]<iX-1)R_=R_.concat(run(last(R_),1,0,0,iX-1-last(R_)[0]));
+  sJ=lay(R_,15);
+  for(const kc of [kTP,kTD]){const dk=Math.sign(kc-kL);const Bc=run(last(R_),0,0,dk,Math.abs(kc-kL)).concat([[iX,jt,kc]]);lay(Bc,sJ);}
   // antenna: iron bars up from the driver-side cowl
   {const i=I_(13.4),k=K_(11.6);let j=Y-1;while(j>0&&!(at(i,j,k)>0))j--;for(let h=1;h<=Math.round(4.4*SY)&&j+h<Y;h++)if(at(i,j+h,k)===0)put(i,j+h,k,BAR_);}
   // coil-over shocks become chain
@@ -842,7 +891,7 @@ function buildMeshes(){
   const bx=(w,h,d,tx,ty,tz)=>{const g=new THREE.BoxGeometry(w,h,d).toNonIndexed();g.translate(tx,ty,tz);return g;};
   const merge=gs=>{const pos=[],nor=[];for(const g of gs){pos.push(...g.attributes.position.array);nor.push(...g.attributes.normal.array);}
     const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));m.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));return m;};
-  const SH={slab:bx(1,.5,1,0,-.25,0),button:bx(.4,.4,.4,0,0,0),thin:bx(.22,1,.22,0,0,0),
+  const SH={dust:bx(.9,.08,.9,0,-.46,0),rep:bx(1,.16,1,0,-.42,0),slab:bx(1,.5,1,0,-.25,0),button:bx(.4,.4,.4,0,0,0),thin:bx(.22,1,.22,0,0,0),
     stairf:merge([bx(1,.5,1,0,-.25,0),bx(.5,.5,1,-.25,.25,0)]),stairb:merge([bx(1,.5,1,0,-.25,0),bx(.5,.5,1,.25,.25,0)]),
     stairp:merge([bx(1,.5,1,0,-.25,0),bx(1,.5,.5,0,.25,-.25)]),staird:merge([bx(1,.5,1,0,-.25,0),bx(1,.5,.5,0,.25,.25)])};
   for(let n=0;n<N;n++)if(vox[n]){totals[vox[n]]=(totals[vox[n]]||0)+1;if(exposed[n])ex++;}
@@ -890,36 +939,78 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.data
 // ---------- layer grid ----------
 const gc=$('grid'),g2=gc.getContext('2d');const LAB=28;let CS=0,fitCS=6;
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function computeFit(){const bw=$('gridbox').clientWidth;fitCS=Math.max(3,Math.min(24,Math.floor((bw-LAB-4)/X)));if(!CS)CS=fitCS;}
+function computeFit(){const bw=$('gridbox').clientWidth;fitCS=Math.max(3,Math.min(24,Math.floor((bw-LAB-24-4)/X)));if(!CS)CS=fitCS;}
+const DIM=24;let meas=[];
+function spans(occ){const f=occ.indexOf(1),l=occ.lastIndexOf(1);if(f<0)return[];const out=[];let st=f;
+  for(let i=f+1;i<=l+1;i++)if(i>l||occ[i]!==occ[st]){out.push({s:st,e:i-1,on:occ[st]===1});st=i;}return out;}
+function layerSpans(){const j=L-1,sel=+$('dimsel').value||0;
+  const has=(i,k)=>{const n=id(i,j,k),v=vox[n];return v&&keep(n)&&(!sel||v===sel);};
+  const col=[],row=[];for(let i=0;i<X;i++){col[i]=0;for(let k=0;k<Z;k++)if(has(i,k)){col[i]=1;break;}}
+  for(let k=0;k<Z;k++){row[k]=0;for(let i=0;i<X;i++)if(has(i,k)){row[k]=1;break;}}
+  return{c:spans(col),r:spans(row)};}
 function drawGrid(){
   if(!vox)return;computeFit();
-  const dpr=window.devicePixelRatio||1,Wd=LAB+X*CS+2,Hd=LAB+Z*CS+22;
+  const OX=LAB+DIM,OY=LAB+DIM;
+  const dpr=window.devicePixelRatio||1,Wd=OX+X*CS+2,Hd=OY+Z*CS+22;
   gc.width=Wd*dpr;gc.height=Hd*dpr;gc.style.width=Wd+'px';gc.style.height=Hd+'px';g2.setTransform(dpr,0,0,dpr,0,0);
-  const fg=css('--fg'),muted=css('--muted'),line=css('--line'),cell=css('--cell'),panel=css('--panel');
-  g2.fillStyle=cell;g2.fillRect(0,0,Wd,Hd);g2.fillStyle=panel;g2.fillRect(LAB,LAB,X*CS,Z*CS);
+  const fg=css('--fg'),muted=css('--muted'),line=css('--line'),cell=css('--cell'),panel=css('--panel'),acc=css('--accent');
+  g2.fillStyle=cell;g2.fillRect(0,0,Wd,Hd);g2.fillStyle=panel;g2.fillRect(OX,OY,X*CS,Z*CS);
   const j=L-1,below=$('below').checked;
-  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const px=LAB+i*CS,py=LAB+k*CS,n=id(i,j,k),v=vox[n];
+  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const px=OX+i*CS,py=OY+k*CS,n=id(i,j,k),v=vox[n];
     if(v&&keep(n)){const c=CAT[v].c;g2.fillStyle=c;g2.fillRect(px,py,CS,CS);
       if(CS>=15){g2.fillStyle=lum(c)<.5?'rgba(255,255,255,.8)':'rgba(0,0,0,.72)';g2.font='600 '+Math.min(11,CS-6)+'px "IBM Plex Mono", monospace';g2.textAlign='center';g2.textBaseline='middle';g2.fillText(codeOf[v],px+CS/2,py+CS/2+.5);}}
     else if(below&&j>0){const nb=id(i,j-1,k),vb=vox[nb];if(vb&&keep(nb)){g2.fillStyle=CAT[vb].c;g2.globalAlpha=.2;g2.fillRect(px+CS*.2,py+CS*.2,CS*.6,CS*.6);g2.globalAlpha=1;}}}
-  for(let i=0;i<=X;i++){const heavy=i%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(LAB+i*CS+.5,LAB);g2.lineTo(LAB+i*CS+.5,LAB+Z*CS);g2.stroke();}
-  for(let k=0;k<=Z;k++){const heavy=k%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(LAB,LAB+k*CS+.5);g2.lineTo(LAB+X*CS,LAB+k*CS+.5);g2.stroke();}
+  for(let i=0;i<=X;i++){const heavy=i%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(OX+i*CS+.5,OY);g2.lineTo(OX+i*CS+.5,OY+Z*CS);g2.stroke();}
+  for(let k=0;k<=Z;k++){const heavy=k%10===0;if(!heavy&&CS<7)continue;g2.strokeStyle=heavy?muted:line;g2.globalAlpha=heavy?.55:1;g2.beginPath();g2.moveTo(OX,OY+k*CS+.5);g2.lineTo(OX+X*CS,OY+k*CS+.5);g2.stroke();}
   g2.globalAlpha=1;
-  // starting block
-  g2.strokeStyle='#d8322c';g2.lineWidth=j===0?3:1.5;g2.strokeRect(LAB+1.5,LAB+1.5,CS-3,CS-3);g2.lineWidth=1;
+  g2.strokeStyle='#d8322c';g2.lineWidth=j===0?3:1.5;g2.strokeRect(OX+1.5,OY+1.5,CS-3,CS-3);g2.lineWidth=1;     // starting block
   g2.fillStyle=muted;g2.font='600 10px "IBM Plex Mono", monospace';g2.textBaseline='middle';
-  g2.textAlign='left';for(let i=0;i<X;i+=10)g2.fillText(i+1,LAB+i*CS+2,LAB/2);
-  g2.textAlign='right';for(let k=0;k<Z;k+=10)g2.fillText(k+1,LAB-4,LAB+k*CS+CS/2);
-  g2.fillStyle=fg;g2.font='600 11px "IBM Plex Sans", sans-serif';
+  g2.textAlign='left';for(let i=0;i<X;i+=10)g2.fillText(i+1,OX+i*CS+2,LAB/2);
+  g2.textAlign='right';for(let k=0;k<Z;k+=10)g2.fillText(k+1,LAB-4,OY+k*CS+CS/2);
+  // blueprint dimension chains: block runs (amber) and the gaps between them (grey), counted in blocks
+  const sp=layerSpans();
+  const chain=(list,horiz)=>{const base=LAB+DIM/2;g2.font='600 10px "IBM Plex Mono", monospace';g2.textAlign='center';g2.textBaseline='middle';
+    for(const d of list){const a=(horiz?OX:OY)+d.s*CS,b=(horiz?OX:OY)+(d.e+1)*CS,n=d.e-d.s+1,col=d.on?acc:muted;
+      g2.strokeStyle=col;g2.fillStyle=col;g2.lineWidth=d.on?2:1;g2.setLineDash(d.on?[]:[3,3]);g2.beginPath();
+      if(horiz){g2.moveTo(a+1,base);g2.lineTo(b-1,base);}else{g2.moveTo(base,a+1);g2.lineTo(base,b-1);}g2.stroke();g2.setLineDash([]);g2.lineWidth=1;
+      g2.beginPath();if(horiz){g2.moveTo(a+.5,base-5);g2.lineTo(a+.5,base+5);g2.moveTo(b-.5,base-5);g2.lineTo(b-.5,base+5);}else{g2.moveTo(base-5,a+.5);g2.lineTo(base+5,a+.5);g2.moveTo(base-5,b-.5);g2.lineTo(base+5,b-.5);}g2.stroke();
+      const txt=String(n),tw=g2.measureText(txt).width+6;
+      if(b-a>=tw){g2.fillStyle=cell;if(horiz){g2.fillRect((a+b)/2-tw/2,base-7,tw,14);}else{g2.fillRect(base-7,(a+b)/2-tw/2,14,tw);}
+        g2.fillStyle=col;if(horiz)g2.fillText(txt,(a+b)/2,base+.5);else{g2.save();g2.translate(base+.5,(a+b)/2);g2.rotate(-Math.PI/2);g2.fillText(txt,0,0);g2.restore();}}}};
+  chain(sp.c,true);chain(sp.r,false);
+  const fmt=l=>l.map(d=>d.on?`<b>${d.e-d.s+1}</b>`:`gap ${d.e-d.s+1}`).join(' · ');
+  const tot=l=>l.length?l[l.length-1].e-l[0].s+1:0;
+  $('diminfo').innerHTML=sp.c.length?`Front to back: ${fmt(sp.c)} (${tot(sp.c)} overall) &nbsp; Side to side: ${fmt(sp.r)} (${tot(sp.r)} overall)`:'Nothing on this layer.';
+  // measuring tape
+  if(meas.length){g2.strokeStyle='#2563eb';g2.fillStyle='#2563eb';g2.lineWidth=2;
+    for(const m of meas)g2.strokeRect(OX+m.i*CS+1,OY+m.k*CS+1,CS-2,CS-2);
+    if(meas.length===2){g2.beginPath();g2.moveTo(OX+(meas[0].i+.5)*CS,OY+(meas[0].k+.5)*CS);g2.lineTo(OX+(meas[1].i+.5)*CS,OY+(meas[1].k+.5)*CS);g2.stroke();}
+    g2.lineWidth=1;}
+  g2.fillStyle=fg;g2.font='600 11px "IBM Plex Sans", sans-serif';g2.textBaseline='middle';
   const pic=cur.kind==='picture';
-  g2.textAlign='left';g2.fillText(pic?'◀ col 1':'◀ FRONT',LAB,LAB+Z*CS+12);
-  g2.textAlign='right';g2.fillText(pic?'col '+X+' ▶':'REAR ▶',LAB+X*CS,LAB+Z*CS+12);
-  if(!pic&&X*CS>420){g2.textAlign='center';g2.fillStyle=muted;g2.fillText('row 1 = passenger side · row '+Z+' = driver side',LAB+X*CS/2,LAB+Z*CS+12);}
+  g2.textAlign='left';g2.fillText(pic?'◀ col 1':'◀ FRONT',OX,OY+Z*CS+12);
+  g2.textAlign='right';g2.fillText(pic?'col '+X+' ▶':'REAR ▶',OX+X*CS,OY+Z*CS+12);
+  if(!pic&&X*CS>420){g2.textAlign='center';g2.fillStyle=muted;g2.fillText('row 1 = passenger side · row '+Z+' = driver side',OX+X*CS/2,OY+Z*CS+12);}
 }
-function showCell(e){const r=gc.getBoundingClientRect();const i=Math.floor((e.clientX-r.left-LAB)/CS),k=Math.floor((e.clientY-r.top-LAB)/CS);
-  if(i<0||i>=X||k<0||k>=Z)return;const n=id(i,L-1,k),v=vox[n];const w=world(i,L-1,k);
+function cellAt(e){const r=gc.getBoundingClientRect();const i=Math.floor((e.clientX-r.left-LAB-DIM)/CS),k=Math.floor((e.clientY-r.top-LAB-DIM)/CS);
+  return(i<0||i>=X||k<0||k>=Z)?null:{i,k};}
+function showCell(e){const c=cellAt(e);if(!c)return;const {i,k}=c;const n=id(i,L-1,k),v=vox[n];const w=world(i,L-1,k);
   $('cellinfo').textContent=`Layer ${L} · col ${i+1} · row ${k+1}`+(w?` · game ${w.x} ${w.y} ${w.z}`:'')+' · '+(v?(keep(n)?nameOf(v):nameOf(v)+' (hidden, skipped)'):'air');}
-gc.addEventListener('pointermove',showCell);gc.addEventListener('pointerdown',showCell);
+function showMeas(){
+  $('measclear').hidden=!meas.length;
+  if(!meas.length){$('measinfo').textContent='';return;}
+  if(meas.length===1){$('measinfo').textContent=`From col ${meas[0].i+1}, row ${meas[0].k+1}. Tap a second square.`;return;}
+  const [a,b]=meas,di=Math.abs(b.i-a.i),dk=Math.abs(b.k-a.k);
+  const part=(d,word)=>d?`${d+1} ${word} counting both squares, ${d-1} between`:'';
+  $('measinfo').innerHTML=`Col ${a.i+1} row ${a.k+1} → col ${b.i+1} row ${b.k+1}: `+
+    [part(di,'blocks front to back'),part(dk,'blocks side to side')].filter(Boolean).join(' · ')+(di&&dk?` · straight line ${Math.hypot(di,dk).toFixed(1)}`:'')+(!di&&!dk?'same square':'');}
+gc.addEventListener('pointermove',showCell);
+gc.addEventListener('click',e=>{const c=cellAt(e);if(!c)return;showCell(e);meas=meas.length===1?[meas[0],c]:[c];showMeas();drawGrid();});
+$('measclear').onclick=()=>{meas=[];showMeas();drawGrid();};
+$('dimsel').onchange=drawGrid;
+function fillDimSel(){const sel=$('dimsel'),keepV=sel.value,c=counts(L-1);
+  sel.innerHTML='<option value="">all blocks</option>'+Object.keys(c).sort((a,b)=>c[b]-c[a]).map(v=>`<option value="${v}">${CAT[v].name}</option>`).join('');
+  if(c[keepV])sel.value=keepV;}
 $('zin').onclick=()=>{CS=Math.min(28,Math.max(CS+1,Math.round(CS*1.5)));drawGrid();};
 $('zout').onclick=()=>{CS=Math.max(3,Math.round(CS/1.5));drawGrid();};
 $('zfit').onclick=()=>{CS=fitCS;drawGrid();};
@@ -929,11 +1020,12 @@ function rowRuns(j,k){const runs=[];let c=null;
   for(let i=0;i<X;i++){const n=id(i,j,k),v=vox[n];const b=(v&&keep(n))?v:0;
     if(b&&c&&c.v===b&&c.e===i-1)c.e=i;else if(b){c={v:b,s:i,e:i};runs.push(c);}else c=null;}
   return runs;}
+const gapTxt=(a,b)=>{const g=b.s-a.e-1;return g>0?`<span class="gap">gap ${g}</span>`:'';};
 function renderRuns(){if(!vox)return;const ol=$('runs');ol.innerHTML='';const j=L-1;let any=false;
   for(let k=0;k<Z;k++){const runs=rowRuns(j,k);if(!runs.length)continue;any=true;
     const li=document.createElement('li');
-    li.innerHTML=`<span class="rn">Row ${k+1}</span><span class="rs">`+runs.map(r=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
-      return `<span class="r1" title="${bl.name}${xyz?' · '+fillCmd(j,k,r):''}"><i style="background:${bl.c}"></i>${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)} ${codeOf[r.v]}×${len}</span>`;}).join('')+'</span>';
+    li.innerHTML=`<span class="rn">Row ${k+1}</span><span class="rs">`+runs.map((r,q)=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
+      return (q?gapTxt(runs[q-1],r):'')+`<span class="r1" title="${bl.name}${xyz?' · '+fillCmd(j,k,r):''}"><i style="background:${bl.c}"></i>${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)} ${codeOf[r.v]}×${len}</span>`;}).join('')+'</span>';
     ol.appendChild(li);}
   if(!any)ol.innerHTML='<li>Nothing to place on this layer.</li>';}
 
@@ -953,7 +1045,7 @@ function renderLayers(){const box=$('layers');box.innerHTML='';box.hidden=Y>120;
 let raf=0;
 function setL(n){L=Math.max(1,Math.min(Y,n));$('slider').value=L;$('lnum').innerHTML=`${L} <small>/ ${Y}</small>`;
   $('note').innerHTML=`<span class="y">Layer ${L} of ${Y}</span>${noteFor(L)}`;$('gridtitle').textContent='Layer '+L;
-  renderLegend();renderRuns();renderLayers();cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{update3d();drawGrid();});}
+  renderLegend();fillDimSel();renderRuns();renderLayers();cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{update3d();drawGrid();});}
 $('prev').onclick=()=>setL(L-1);$('next').onclick=()=>setL(L+1);
 $('slider').oninput=e=>setL(+e.target.value);
 $('ghost').onchange=update3d;$('below').onchange=drawGrid;
@@ -1004,8 +1096,8 @@ function tvDraw(){
   }
   c.fillStyle=css('--muted');c.font='600 12px "IBM Plex Mono", monospace';c.textAlign='left';c.textBaseline='top';
   for(const r of runs)c.fillText(r.s+1,(r.s-s0)*cs+2,2);
-  $('tvruns').innerHTML=runs.map(r=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);
-    return `<li><i style="background:${bl.c}"></i><span class="ct">${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)}</span><span><b>${len}</b> × ${bl.name}</span>${xyz?(CAT[r.v].hand?`<span class="xyz">${xyz} · place by hand</span>`:`<span class="xyz">${fillCmd(j,k,r)}</span><button class="copy tvbtn" data-t="${fillCmd(j,k,r)}">Copy</button>`):''}</li>`;}).join('');
+  $('tvruns').innerHTML=runs.map((r,q)=>{const bl=CAT[r.v],len=r.e-r.s+1,xyz=runXYZ(j,k,r.s,r.e);const g=q?r.s-runs[q-1].e-1:0;
+    return (g>0?`<li class="tvgap">↔ gap of <b>${g}</b> empty block${g>1?'s':''}</li>`:'')+`<li><i style="background:${bl.c}"></i><span class="ct">${r.s===r.e?'col '+(r.s+1):'cols '+(r.s+1)+'–'+(r.e+1)}</span><span><b>${len}</b> × ${bl.name}</span>${xyz?(CAT[r.v].hand?`<span class="xyz">${xyz} · place by hand</span>`:`<span class="xyz">${fillCmd(j,k,r)}</span><button class="copy tvbtn" data-t="${fillCmd(j,k,r)}">Copy</button>`):''}</li>`;}).join('');
   // layer map
   const mc=$('tvmap'),m=mc.getContext('2d'),ms=Math.max(2,Math.min(8,Math.floor(Math.min(520,window.innerWidth-40)/X))),MW=X*ms,MH=Z*ms;
   mc.width=MW*dpr;mc.height=MH*dpr;mc.style.width=MW+'px';mc.style.height=MH+'px';m.setTransform(dpr,0,0,dpr,0,0);
@@ -1067,6 +1159,7 @@ function setDesc(){
   else{$('bname').textContent=cur.name;$('bdesc').textContent=`Your picture as ${cur.orient==='flat'?'a floor':'a wall'} of full blocks, ${X} wide × ${cur.orient==='flat'?Z:Y} tall${(cur.orient==='flat'?Y:Z)>1?', '+(cur.orient==='flat'?Y:Z)+' thick':''}.`;}
 }
 function afterLoad(){
+  meas=[];showMeas();
   assignCodes();done=store.get('done-'+buildKey(),[]);rowsDone=new Set(store.get('rows-'+buildKey(),[]));
   $('slider').max=Y;CS=0;buildMeshes();renderMats();setDesc();renderShelf();loadAnchor();setL(Y);
 }
