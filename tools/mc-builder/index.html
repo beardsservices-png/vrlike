@@ -354,6 +354,7 @@ const WHT=CATIDX['White Concrete'];
 Object.assign(TACODE,{[LEV]:'Lv',[DUST]:'rd',[REP.f]:'>f',[REP.b]:'>b',[REP.p]:'>p',[REP.d]:'>d',[ZD.f]:'Zf',[ZD.b]:'Zb',[ZD.p]:'Zp',[ZD.d]:'Zd',[ZS]:'Zs',[NUT]:'n',[HDL]:'h',[LMP]:'L',[RSB]:'X',[RGL]:'Rg',[BAR_]:'|',[CHN]:'C',[WHT]:'Wh'});
 CAT[WHT].use='Rear license plate';
 for(const g of ['Sea Lantern','Glowstone','Shroomlight'])CAT[CATIDX[g]].glow=1;
+addBlock('Moss Block','#596d2d');addBlock('Dark Oak Log','#3c2b1a');addBlock('Cherry Leaves','#e6a8c8');
 const PALS={c:concIdx,cw:[...concIdx,...woolIdx],all:[...new Set([...concIdx,...woolIdx,...terrIdx,...otherIdx])]};
 
 // ---------- the truck, as a shape sampled at 4 blocks per unit ----------
@@ -647,127 +648,79 @@ function vnoise(x,y,s){const xi=Math.floor(x),yi=Math.floor(y),fx=x-xi,fy=y-yi,u
   const a=hash2(xi,yi,s),b=hash2(xi+1,yi,s),c=hash2(xi,yi+1,s),d=hash2(xi+1,yi+1,s);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
 const fbm=(x,y,s)=>vnoise(x,y,s)*.55+vnoise(x*2.1,y*2.1,s+7)*.3+vnoise(x*4.3,y*4.3,s+13)*.15;
 const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
-// Frozen caldera: a ring of icy peaks around a sunken crater with a frozen lake and a small island
-function genCaldera(){
-  X=Z=128;Y=56;N=X*Y*Z;vox=new Uint8Array(N);const c=63.5,H=new Float32Array(X*Z);
-  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const dx=i-c,dz=k-c,rr=Math.hypot(dx,dz),an=Math.atan2(dz,dx);
-    const R=40+(vnoise(Math.cos(an)*2+5,Math.sin(an)*2+5,3)-.5)*12;
-    const peak=34+vnoise(Math.cos(an)*3+9,Math.sin(an)*3+9,5)*18;
-    let h;
-    if(rr<R)h=10+(peak-10)*smooth((rr-(R-15))/15);
-    else h=2+(peak-2)*(1-smooth((rr-R)/Math.max(8,62-R)));
-    h+=(fbm(i/14,k/14,11)-.5)*7*smooth((h-8)/20);
-    if(rr<16)h=Math.min(h,9);                  // frozen lake
-    if(rr<5)h=12-rr*.35;                       // island for the watchtower
-    H[k*X+i]=rr>R&&h<3?-1:Math.max(1,Math.min(Y-1,h));}       // no flat apron: the range ends where the slope does
-  for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const h=Math.round(H[k*X+i]),rr=Math.hypot(i-c,k-c);if(h<0)continue;
-    let sl=0;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ii=Math.min(X-1,Math.max(0,i+a)),kk=Math.min(Z-1,Math.max(0,k+b));sl=Math.max(sl,Math.abs(H[kk*X+ii]-H[k*X+i]));}
-    for(let j=0;j<=h;j++){let v=j<4?CATIDX['Deepslate']:CATIDX['Stone'];
-      if(j===h){
-        if(rr<16&&rr>=5)v=BI;
-        else if(h>=34)v=sl>=2.5?CATIDX['Packed Ice']:CATIDX['Snow Block'];
-        else if(h>=22)v=sl>=2.5?CATIDX['Stone']:CATIDX['Snow Block'];
-        else if(h>=12)v=sl>=2?CATIDX['Packed Ice']:CATIDX['Snow Block'];
-        else v=rr<5?CATIDX['Snow Block']:GRV;}
-      else if(j>=h-2&&h>=34&&sl>=2.5)v=CATIDX['Packed Ice'];
-      vox[id(i,j,k)]=v;}}
+// Impossible triangle: three straight quartz bars along X, Y and Z. Seen from far away and high up
+// in the +X/+Z corner, the end of the third bar lands exactly over the start of the first and the
+// three close into a triangle that cannot exist. Built from nothing but straight lines.
+function genPenrose(){
+  const L=40,s=5;X=Y=Z=L+s;N=X*Y*Z;vox=new Uint8Array(N);const q=CATIDX['Quartz Block'];
+  const box=(x0,y0,z0,x1,y1,z1)=>{for(let j=y0;j<y1;j++)for(let k=z0;k<z1;k++)for(let i=x0;i<x1;i++)vox[id(i,j,k)]=q;};
+  box(s,0,0,L+s,s,s);        // bar 1 runs along X (its first s blocks are left off: bar 3 covers that spot)
+  box(L,0,0,L+s,L+s,s);      // bar 2 rises along Y
+  box(L,L,0,L+s,L+s,L+s);    // bar 3 runs toward you along Z and appears to meet bar 1
   computeExposed();
 }
-// Caldera watchtower: round stone tower with a glowing beacon, sized for the caldera's island
-function genTower(){
-  X=Z=17;Y=44;N=X*Y*Z;vox=new Uint8Array(N);const c=8;
-  for(let j=0;j<Y;j++)for(let k=0;k<Z;k++)for(let i=0;i<X;i++){const dx=i-c,dz=k-c,rr=Math.hypot(dx,dz),an=Math.atan2(dz,dx);let v=0;
-    if(j<=2&&rr<=8.2)v=COB;
-    else if(j<=30&&rr<=6.2&&rr>=4.6){v=SBR;
-      const win=(j%8>=3&&j%8<=5)&&j>8&&(Math.abs(dx)<=0.6||Math.abs(dz)<=0.6);if(win)v=GLA;
-      if(j>=3&&j<=5&&dz>4&&Math.abs(dx)<=0.6)v=0;}       // door
-    else if(j<=30&&rr<4.6&&j>3&&j%8===3)v=CATIDX['Spruce Planks'];
-    else if(j===31&&rr<=7.6)v=SBR;
-    else if(j===32&&rr<=7.6&&rr>=6.6&&Math.floor((an+Math.PI)/(2*Math.PI)*16)%2===0)v=SBR;
-    else if(j>=32&&j<=36&&Math.abs(Math.abs(dx)-3.5)<0.6&&Math.abs(Math.abs(dz)-3.5)<0.6)v=CATIDX['Dark Oak Planks'];
-    else if(j>=32&&j<=35&&rr<=1.6)v=GLS;
-    else if(j>=37){const rad=6.2-(j-37)*1.0;if(rr<=rad&&rr>=rad-1.4)v=CATIDX['Spruce Planks'];if(j===Y-1&&rr<=.8)v=GLS;}
-    vox[id(i,j,k)]=v;}
+// Sliced nautilus: a tube grown along a logarithmic spiral that widens 3 times every turn, with the
+// tube exactly as fat as it needs to be for each turn to touch the one inside it (that is what a real
+// nautilus does). Cut in half down the middle like a museum specimen so the pearly chambers show.
+function genNautilus(){
+  const b=Math.log(3)/(2*Math.PI),k=0.5,r0=6.4,T=2.75*Math.PI;
+  const WT=CATIDX['White Terracotta'],OT=CATIDX['Orange Terracotta'],QZ=CATIDX['Quartz Block'],ST=CATIDX['Smooth Stone'];
+  const C=[];for(let t=0;t<=T;t+=0.01){const r=r0*Math.exp(b*t);C.push({t,x:r*Math.cos(t),y:-r*Math.sin(t),rho:k*r,dx:-Math.sin(t)+b*Math.cos(t),dy:-(Math.cos(t)+b*Math.sin(t))});}
+  for(const c of C){const l=Math.hypot(c.dx,c.dy);c.dx/=l;c.dy/=l;}
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const c of C){x0=Math.min(x0,c.x-c.rho);x1=Math.max(x1,c.x+c.rho);y0=Math.min(y0,c.y-c.rho);y1=Math.max(y1,c.y+c.rho);}
+  const PL=4;X=Math.ceil(x1-x0)+2;Y=Math.ceil(y1-y0)+PL+1;Z=Math.ceil(C[C.length-1].rho)+1;N=X*Y*Z;vox=new Uint8Array(N);
+  const ox=1-x0,oy=PL-y0;for(const c of C){c.x+=ox;c.y+=oy;}
+  const sept=[];for(let t=T-0.8;t>0.5;t-=0.5)sept.push(C[Math.round(t/0.01)]);          // chamber walls
+  for(let j=0;j<Y;j++)for(let kk=0;kk<Z;kk++)for(let i=0;i<X;i++){
+    const x=i+.5,y=j+.5,z=kk+.5;let inS=false,inIn=false,best=null,bd=1e9;
+    for(const c of C){const d=Math.hypot(x-c.x,y-c.y,z);if(d<c.rho){inS=true;if(d<c.rho-1.2)inIn=true;if(c.rho-d<bd){bd=c.rho-d;best=c;}}}
+    let v=0;
+    if(inS&&!inIn)v=bd<0.9?((Math.floor(best.t*4/Math.PI)%2&&best.t>T-2*Math.PI)?OT:WT):QZ;   // stripes outside, nacre inside
+    else if(inIn&&sept.some(c=>{const px=x-c.x,py=y-c.y;return Math.abs(px*c.dx+py*c.dy)<0.6&&Math.hypot(px,py,z)<c.rho;}))v=QZ;
+    vox[id(i,j,kk)]=v;}
+  // a low stone plinth under the lowest point of the shell
+  let lo=Y,li=0;for(let i=0;i<X;i++)for(let j=0;j<Y;j++)if(vox[id(i,j,0)]){if(j<lo){lo=j;li=i;}break;}
+  for(let j=0;j<lo;j++)for(let kk=0;kk<Math.min(Z,10);kk++)for(let i=li-8+j;i<=li+8-j;i++)if(i>=0&&i<X)vox[id(i,j,kk)]=ST;
   computeExposed();
 }
-// Ice dragon perched like a statue: legs fused into a rock base, wings folded, all the detail in the face.
-// Designed in 40 x 42 x 66 "units" and sampled at 3 blocks per unit. x across, y up, z front to back; faces row 1.
-function genDragon(){
-  const S=3;X=40*S;Y=66*S;Z=42*S;N=X*Y*Z;vox=new Uint8Array(N);const C=20;
-  const PI_=CATIDX['Packed Ice'],SN=CATIDX['Snow Block'],QZ=CATIDX['Quartz Block'],BK=CATIDX['Black Concrete'],SL=CATIDX['Sea Lantern'],DS=CATIDX['Deepslate'],ST=CATIDX['Stone'],KS=CATIDX['Blackstone'];
-  const ell=(x,y,z,cx,cy,cz,rx,ry,rz)=>((x-cx)/rx)**2+((y-cy)/ry)**2+((z-cz)/rz)**2;
-  function capT(x,y,z,a,b){const ab0=b[0]-a[0],ab1=b[1]-a[1],ab2=b[2]-a[2],ap0=x-a[0],ap1=y-a[1],ap2=z-a[2];
-    const t=Math.max(0,Math.min(1,(ap0*ab0+ap1*ab1+ap2*ab2)/(ab0*ab0+ab1*ab1+ab2*ab2)));return[Math.hypot(ap0-ab0*t,ap1-ab1*t,ap2-ab2*t),t];}
-  const cap=(x,y,z,a,b,ra,rb)=>{const[d,t]=capT(x,y,z,a,b);return d<=ra+(rb-ra)*t;};
-  function chainT(x,y,z,pts,rs){for(let q=0;q<pts.length-1;q++){const[d,t]=capT(x,y,z,pts[q],pts[q+1]);if(d<=rs[q]+(rs[q+1]-rs[q])*t)return q+t;}return -1;}
-  const HORN=[[C+4.4,55,10],[C+7,59.6,15],[C+8.6,62.2,22],[C+8,61.6,28.5]],HR=[2.3,1.6,1.0,0.4];
-  const SP=[[C,44,22.5],[C,40.5,24.6],[C,37,27],[C,33.5,29.5],[C,30,31.6],[C,26,33.4],[C,22,34.8],[C,18,35.8],[C,14,36.4]];
-  const TEETH=[];for(let q=0;q<6;q++)TEETH.push(1.6+q*1.05);
-  const FRILL=[[C+3,56.5,14,C+5.5,58.5,19],[C+5.6,54,14.5,C+9.5,55.6,19],[C+6.8,51,14,C+11,51.5,18]];
-  for(let j=0;j<Y;j++){const y=(j+.5)/S,head=y>29;
-  for(let k=0;k<Z;k++){const z=(k+.5)/S;
-  for(let i=0;i<X;i++){const x=(i+.5)/S,ax=C+Math.abs(x-C);let v=0;
-    if(head){
-      const hx=C+(x-C)/1.5,hy=50+(y-46)/1.5,hz=7+(z-10.1)/1.5,hax=C+Math.abs(hx-C),dx=hax-C;   // the head is drawn 1.5x
-      // reptile head: long boxy wedge of a snout, jaws hinged wide open, slit eyes on the sides
-      const t=Math.max(0,Math.min(1,(hz-0.6)/8.6));                       // 0 at the snout tip, 1 at the jaw hinge
-      const uw=1.5+2.0*t, uTop=49.4+2.4*t, uBot=47.5+0.4*t;                  // upper jaw / snout box
-      const lw=1.2+1.6*t, lTop=44.2+2.4*t, lBot=lTop-1.6;                    // lower jaw, dropped open
-      const box=(w,top,bot)=>hz>=0.6&&hz<=9.6&&(dx/w)**4+((hy-(top+bot)/2)/((top-bot)/2))**4<=1;
-      const eyeY=51.0-(8.4-hz)*0.32;                                          // slanted: the front end sits lower
-      const e=((dx-3.25)/0.55)**2+((hy-eyeY)/0.42)**2+((hz-8.4)/1.6)**2;
-      const horn=chainT(hax,hy,hz,[[C+2.8,53.4,12.4],[C+5.4,56.4,16.6],[C+6.9,58.2,21.8],[C+6.4,57.8,27.2]],[1.9,1.4,0.9,0.35]);
-      if(e<=1)v=Math.abs(hz-8.4)<1.25&&Math.abs(hy-eyeY)<0.16?BK:SHR;                                       // narrow glowing slit eye
-      else if(cap(hax,hy,hz,[C+4.3,52.5,10.6],[C+2.2,51.9,6.0],0.85,0.55))v=PDS;                              // heavy brow over the eye
-      else if(cap(hax,hy,hz,[C+4.1,52.7,10.2],[C+5.3,54.6,12.6],0.55,0.1)||cap(hax,hy,hz,[C+3.2,52.4,7.8],[C+3.9,54,9.2],0.4,0.1))v=PDS; // brow spikes
-      else if(horn>=0)v=(Math.floor(horn*7)%2)?PDS:KS;                                                      // ridged horns
-      else if(chainT(hax,hy,hz,[[C+3.4,47.2,9.6],[C+6.2,45.6,12.6],[C+7.6,44.2,15.4]],[0.9,0.55,0.2])>=0)v=PDS; // jaw-hinge spikes
-      else if([[C+2.6,52.9,13.4,C+4.6,55.6,16.4],[C+4.2,51.6,13.6,C+6.8,53.2,17]].some(f=>cap(hax,hy,hz,[f[0],f[1],f[2]],[f[3],f[4],f[5]],0.6,0.1)))v=KS; // frill
-      else if([1.8,3.6,5.6].some(zz=>cap(hx,hy,hz,[C,uTop-0.3+(zz-hz)*0,zz],[C,uTop+1.1,zz+0.9],0.45,0.1)&&Math.abs(hz-zz)<1.2))v=PDS; // ridge spikes on the snout
-      else if(cap(hax,hy,hz,[C+uw-0.35,uBot+0.2,2.0],[C+uw-0.35,uBot-3.3,2.0],0.5,0.12)||                     // big upper fangs
-              cap(hax,hy,hz,[C+lw-0.3,lTop-0.2,3.4],[C+lw-0.3,lTop+2.6,3.4],0.42,0.1)||                     // big lower fangs
-              [3.2,4.3,5.4,6.5,7.6].some(zz=>cap(hax,hy,hz,[C+1.5+2.0*((zz-0.6)/8.6)-0.3,47.5+0.4*((zz-0.6)/8.6)+0.1,zz],[C+1.5+2.0*((zz-0.6)/8.6)-0.3,47.5+0.4*((zz-0.6)/8.6)-1.1,zz],0.3,0.08))||
-              [4.6,5.8,7.0].some(zz=>cap(hax,hy,hz,[C+1.2+1.6*((zz-0.6)/8.6)-0.25,44.2+2.4*((zz-0.6)/8.6),zz],[C+1.2+1.6*((zz-0.6)/8.6)-0.25,44.2+2.4*((zz-0.6)/8.6)+0.9,zz],0.26,0.08)))v=QZ; // rows of teeth
-      else if(ell(hax,hy,hz,C+0.8,49.0+0.4,1.0,0.32,0.3,0.4)<=1)v=BK;                                     // nostrils
-      else if(box(uw,uTop,uBot))v=hy<uBot+0.45?PDS:((Math.floor(hz*2)+Math.floor(dx*2))%3===0?BI:PI_);        // upper jaw, dark gum line
-      else if(box(lw,lTop,lBot))v=hy>lTop-0.4?PDS:PI_;                                                        // lower jaw, dark gums
-      else if(hz>=5.5&&hz<=10&&dx<2.2&&hy<uBot&&hy>lTop-0.5&&hy>44)v=hz>8.2?SL:KS;                          // mouth: dark inside, glow deep in the throat
-      else if(ell(hax,hy,hz,C,51.3,11.2,4.4,3.1,4.8)<=1)v=(Math.floor(hy*2)+Math.floor(hz*2))%4===0?BI:PI_;  // flat, long skull
-      else if(ell(hax,hy,hz,C+3.2,48.6,10.2,1.5,2.0,2.6)<=1)v=PI_;                                           // cheek / jaw muscle
-    }
-    if(!v){
-      let q=-1;
-      for(let s2=0;s2<SP.length&&q<0;s2++){const b=SP[s2],sz=1.3-s2*0.05;if(cap(x,y,z,[b[0],b[1]-1,b[2]-1.5],[b[0],b[1]+1.4,b[2]+2.6],sz,0.15))q=s2;}
-      const wa=chainT(ax,y,z,[[C+11,48,24],[C+13.2,30,22.5],[C+12.2,9,26]],[1.4,1.3,1.1]);
-      if(q>=0)v=PDS;                                                                                                 // back spines
-      else if(wa>=0||cap(ax,y,z,[C+11,48,24],[C+12.4,53,22.5],1.1,0.2)||cap(ax,y,z,[C+11.8,47,25],[C+13.6,50.5,25.5],0.8,0.15))v=PDS; // wing arms + claws
-      else if(chainT(x,y,z,[[C,34,21],[C,40,19.5],[C,46,16]],[7,6.3,6])>=0)
-        v=(z<16.5-(y-34)*.3&&Math.abs(x-C)<4.5)?((y*1.5%1)<0.3?PI_:SN):((Math.floor(y*1.6)+Math.floor(x*1.6))%2?PI_:(hash2(i,j,k)<0.5?BI:PI_)); // neck: belly plates, scales
-      else{const wx=C+10.2+(y-27)*0.11;
-        if(ell(ax,y,z,wx,27,30,3.3,22.5,9.2)<=1){
-          const bone=[[ [wx+2.4,46,25],[wx+2.6,26,31],[wx+2.2,8,35] ],[ [wx+2.4,44,27],[wx+2.8,30,36] ],[ [wx+2.2,42,29],[wx+2.4,36,38] ]].some(ch=>chainT(ax,y,z,ch,ch.map(()=>0.6))>=0);
-          v=bone?PDS:((z+y*0.55)%5<0.7?PI_:BI);}                                                                    // folded wings, finger bones
-        else if(ell(x,y,z,C,28,18,9,8.5,7.2)<=1||ell(x,y,z,C,20,24,11,17,10)<=1){
-          v=(z<16+(28-y)*.15&&Math.abs(x-C)<5.5)?((y*1.5%1)<0.3?PI_:SN):(((Math.floor(y*1.4)+Math.floor((x+Math.floor(y*1.4)*0.5)*1.4))%2)?PI_:(hash2(i,j,k)<0.45?BI:PI_));} // chest + torso
-        else if(chainT(x,y,z,[[C-14.5,4.5,14],[C-9,3.6,8],[C,3.4,5.8],[C+9,3.8,8.6],[C+14,5,14]],[3.1,2.8,2.5,2,1.4])>=0)v=(Math.floor(x*1.5)+Math.floor(y*1.5))%2?PI_:BI; // tail
-        else if(cap(x,y,z,[C+14,5,14],[C+16,8.4,16.5],1.2,0.15)||cap(x,y,z,[C+12.4,5.8,11.5],[C+14,8.6,12.4],0.8,0.1))v=PDS; // tail spikes
-        else if(ell(ax,y,z,C+8,9,27,7,8.5,9)<=1)v=PI_;                                                                // haunches
-        else if(y<10&&ell(x,y,z,C,1,25,19.5,10,16.5)<=1)v=hash2(i,j,k+5)<0.3?ST:DS;                                  // rock base, fuses into the mountain
-      }
-    }
-    vox[id(i,j,k)]=v;}}}
+// Cherry bonsai: an S-curved trunk that tapers as it rises, three branches, flat-bottomed blossom
+// pads, a glazed pot with moss. Each pad is one squashed ellipsoid; the trunk is a chain of spheres.
+function genBonsai(){
+  X=50;Y=46;Z=28;N=X*Y*Z;vox=new Uint8Array(N);
+  const POT=CATIDX['Cyan Terracotta'],RIM=CATIDX['Light Gray Terracotta'],MOSS=CATIDX['Moss Block'],LOG=CATIDX['Dark Oak Log'],
+        LV=CATIDX['Cherry Leaves'],LV2=CATIDX['Pink Wool'];
+  const set=(i,j,k,v)=>{if(i>=0&&j>=0&&k>=0&&i<X&&j<Y&&k<Z)vox[id(i,j,k)]=v;};
+  const tube=(pts,r0,r1)=>{const n=pts.length-1;for(let q=0;q<n;q++)for(let t=0;t<=1;t+=0.05){
+      const a=pts[q],b=pts[q+1],x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t,z=a[2]+(b[2]-a[2])*t,r=r0+(r1-r0)*((q+t)/n);
+      for(let j=Math.floor(y-r);j<=y+r;j++)for(let k=Math.floor(z-r);k<=z+r;k++)for(let i=Math.floor(x-r);i<=x+r;i++)
+        if(Math.hypot(i+.5-x,j+.5-y,k+.5-z)<=r)set(i,j,k,LOG);}};
+  const pad=(cx,cy,cz,rx,ry,rz)=>{for(let j=Math.floor(cy-ry);j<=cy+ry;j++)for(let k=Math.floor(cz-rz);k<=cz+rz;k++)for(let i=Math.floor(cx-rx);i<=cx+rx;i++){
+      const e=((i+.5-cx)/rx)**2+((j+.5-cy)/ry)**2+((k+.5-cz)/rz)**2;
+      if(e<=1&&j+.5>=cy-ry*0.35&&vox[id(i,j,k)]!==LOG)set(i,j,k,hash2(i,j*3+k,9)<0.12?LV2:LV);}};          // flat bottom
+  // pot: tapered sides, a rim, two feet, moss on top
+  for(let j=0;j<8;j++)for(let k=4;k<24;k++)for(let i=9;i<41;i++){const inset=j<1?2:j>6?-1:Math.max(0,2-j);
+    if(i<9+inset||i>=41-inset||k<4+inset||k>=24-inset)continue;
+    if(j<1&&!(i<15||i>=35))continue;                                                           // feet
+    set(i,j,k,j>=7?RIM:j===6?MOSS:POT);}
+  for(let k=6;k<22;k++)for(let i=11;i<39;i++)set(i,7,k,(i<12||i>=38||k<7||k>=21)?RIM:MOSS);
+  // trunk and branches
+  tube([[22,7,14],[19,13,14],[23,19,15],[29,24,14],[27,30,13]],3.2,1.5);
+  tube([[23,19,15],[15,23,15],[9,25,14]],1.6,0.8);
+  tube([[29,24,14],[37,27,13],[41,28,13]],1.4,0.7);
+  tube([[27,30,13],[26,35,14]],1.3,0.9);
+  pad(9,27,14,8,3.2,7);pad(40,30,13,7.5,3,6.5);pad(26,38,14,10,4.5,8);pad(19,33,8,5,2.5,4);
   computeExposed();
 }
 const BUILTIN={
-  dragon:{name:'Wicked Ice Dragon',tag:'DRAGON',gen:genDragon,use:'Dragon',front:[0.45,0.18,-1],side:[1,0.15,-0.05],rear:[-0.4,0.3,1],
-    desc:'An ice dragon perched like a statue, legs fused into a rock base and wings folded tight, with the detail in the face: a long reptile snout with ridge spikes, narrow slanted slit eyes under a heavy brow, jaws hinged wide open with big upper and lower fangs and rows of teeth, a dark mouth glowing deep in the throat, and ridged horns sweeping back. 120 wide × 126 deep × 198 tall, head drawn big so the face reads from far away. It faces row 1.',
-    note:L=>{const l=L/3;return l<=10?'Rock base and the tail curled around the front. Blend this into your mountain.':l<=22?'Haunches, lower wings and the start of the belly plates.':l<=33?'Chest, folded wings with their finger ridges, back spines.':l<=38?'Neck, wing arms, and the bottom of the lower jaw.':l<=45?'Lower jaw with upward fangs, the glowing throat.':l<=50?'Upper jaw, hanging fangs, nostrils, cheek spikes.':l<=57?'Eyes with slit pupils and the angry brow ridges.':'Horns sweeping back.';}},
-  caldera:{name:'Frozen Caldera',tag:'CALDERA',gen:genCaldera,use:'Landscape',
-    desc:'A ring of icy peaks around a sunken crater, with a frozen blue-ice lake and a small snowy island in the middle. 128 × 128 and up to 56 tall; the inside is hollow when "Skip hidden blocks" is on.',
-    note:l=>l<=4?'Deepslate bedrock layer under the whole range.':l<=10?'Crater floor: gravel, then the frozen lake at layer 10.':l<=13?'The island and the foot of the crater walls.':l<=22?'Lower slopes: packed ice on the steep inner faces.':l<=34?'Middle slopes: snow with bare stone where it is steep.':'The peaks: snow caps and packed-ice cliffs.'},
-  tower:{name:'Caldera Watchtower',tag:'TOWER',gen:genTower,use:'Tower',
-    desc:'A round stone watchtower with plank floors, glass windows, a battlement and a glowstone beacon under a spruce roof. 17 × 17 and 44 tall, sized to stand on the Frozen Caldera\'s island (its center, on layer 13).',
-    note:l=>l<=3?'Cobblestone base and the doorway.':l<=31?'Tower walls: a plank floor every 8 layers, windows on all four sides.':l<=33?'Battlement walk and crenellations.':l<=37?'Beacon room: dark oak posts around the glowstone.':'Spruce roof with a glowstone tip.'}
+  penrose:{name:'Impossible Triangle',tag:'PENROSE',gen:genPenrose,use:'Sculpture',front:[1,1,1],fov:8,side:[1,0.15,0],rear:[-1,0.6,-1],
+    desc:'Three straight bars of quartz, 45 blocks on a side, about 3,000 blocks. Seen from far away and high up in their +X/+Z corner, the end of the last bar sits right on top of the first and they close into a triangle that can\'t exist. The Front view shows the illusion; turn it and it falls apart.',
+    note:l=>l<=5?'Bar 1 runs along the ground (X) and bar 2 starts up the far corner.':l<=40?'Bar 2 climbs straight up.':'Bar 3 runs toward the viewer along Z. Build the ground bar first, then climb.'},
+  nautilus:{name:'Sliced Nautilus',tag:'NAUTILUS',gen:genNautilus,use:'Sculpture',front:[0.05,0.15,-1],side:[1,0.15,-0.2],rear:[0,0.2,1],
+    desc:'A nautilus shell sliced down its middle like a museum specimen: a logarithmic spiral that widens 3 times every turn, each turn just touching the one inside it, as a real nautilus grows. Pearly quartz chambers inside, tiger stripes on the outer turn, a stone plinth. The cut face is row 1.',
+    note:l=>l<=5?'Stone plinth and the bottom of the outer whorl.':l<=20?'Outer whorl: striped wall, quartz lining, chamber walls.':l<=45?'The tight inner turns and the smallest chambers.':'The top of the outer whorl.'},
+  bonsai:{name:'Cherry Bonsai',tag:'BONSAI',gen:genBonsai,use:'Sculpture',front:[0.35,0.35,-1],side:[1,0.3,0],rear:[0,0.3,1],
+    desc:'A cherry blossom bonsai in a glazed cyan pot: an S-curved dark oak trunk that thins as it rises, three branches, and flat-bottomed blossom pads of cherry leaves with a few darker pink flecks. 50 wide × 46 tall × 28 deep.',
+    note:l=>l<=8?'The pot: feet, tapered sides, rim, and moss on top.':l<=24?'The trunk bends one way, then the other, as it rises.':l<=32?'Branches reach out to the side pads.':'The crown pad on top.'}
 };
 
 // ---------- state ----------
@@ -874,7 +827,7 @@ function init3d(){
   catch(e){$('loading').textContent='This browser has WebGL turned off, so the 3D view is unavailable. The layer plan below still works.';return;}
   $('loading').hidden=true;
   renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
-  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(30,1,1,6000);
+  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(30,1,1,30000);
   scene.add(new THREE.HemisphereLight(0xffffff,0x555a60,1.0));
   const sun=new THREE.DirectionalLight(0xffffff,0.75);sun.position.set(-1,2.2,1.3);scene.add(sun);
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(700,700),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.08}));
@@ -910,7 +863,8 @@ function buildMeshes(){
   post.position.set(0.5-X/2,ph/2,0.5-Z/2);scene.add(post);dyn.push(post);
   controls.target.set(0,Y*0.45,0);setView('front');resize();
 }
-function setView(v){if(!camera)return;const d=Math.max(X,Y*1.4,Z)*(cur&&cur.kind==='model'?2.1:1.6),dir=new THREE.Vector3();
+function setView(v){if(!camera)return;const fov=(cur&&cur.kind==='gen'&&BUILTIN[cur.id].fov)||30;camera.fov=fov;camera.updateProjectionMatrix();
+  const d=Math.max(X,Y*1.4,Z)*(cur&&cur.kind==='model'?2.1:1.6)*(30/fov),dir=new THREE.Vector3();
   const pic=cur&&cur.kind==='picture';
   const gf=cur&&cur.kind==='gen'&&BUILTIN[cur.id].front;
   if(v==='front')gf?dir.set(...gf):pic?dir.set(0.15,0.2,1):dir.set(-0.72,0.42,0.6);
