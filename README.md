@@ -188,13 +188,11 @@ Locally `node server.js` works too (data goes in `./.data`); `start.bat` still w
   row-by-row runs, TV build mode (one row at a time), and a starting block: enter its
   in-game X/Y/Z and every run gets a ready `/fill` command. Also reads STL/OBJ exports from Draft Studio
   (`CAD-` repo; millimeters, z up) and voxelizes them at a chosen scale (1 block = 1 in …
-  1 m), filling the inside by flood-filling the outside air. Two more built-in examples: *Frozen Caldera*
-  (128 x 128 x 56 ring of icy peaks around a crater with a frozen lake, from Brian's idea)
-  and *Caldera Watchtower* (17 x 17 x 44, sized to stand on the caldera's island). Plus *Wicked Ice Dragon*
-  (120 x 126 x 198, designed in 40 x 42 x 66 units sampled at 3 blocks each): perched statue,
-  legs fused into a rock base, wings folded with finger bones, head drawn 1.5x with ringed slit
-  eyes, brow spikes, ridged horns, rows of teeth on dark gums, glowing throat, frill and chin
-  spikes (`genDragon`). Moved here from
+  1 m), filling the inside by flood-filling the outside air. Built-in examples besides the truck:
+  *Impossible Triangle* (three straight quartz bars that close into a Penrose triangle from one
+  far, high corner; the 3D Front view uses a narrow lens to show it), *Sliced Nautilus*
+  (logarithmic spiral widening 3x per turn, cut open to show the chambers) and *Cherry Bonsai*
+  (S-curved trunk, blossom pads, glazed pot). Moved here from
   `virtual-board-games` on 20 Oct. Live copy: claude.ai artifact *Lifted Tacoma Build*.
 - **`tools/mc-commands/`**: Bedrock Command Guide (PS5): syntax and copyable examples
   for the building commands (`/fill`, `/clone`, `/structure`, `/tickingarea` …), world
